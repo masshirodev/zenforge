@@ -1,6 +1,6 @@
 
-#include "helper.gpc"
-#include "control.gpc"
+import helper;
+import control;
 
 // FGC Helper Functions
 // Common utilities for fighting game scripts

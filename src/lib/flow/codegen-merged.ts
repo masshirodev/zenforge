@@ -1,5 +1,11 @@
-import type { FlowProject, FlowVariable, FlowProfile, ProfileSwitchConfig } from '$lib/types/flow';
-import { generateFlowGpc } from './codegen';
+import type { FlowProject, FlowGraph, FlowVariable, FlowProfile, ProfileSwitchConfig } from '$lib/types/flow';
+import {
+	generateFlowGpc,
+	collectPersistVars,
+	flowVarsToPersistVars,
+	generateBitpackPersistence,
+	type PersistVar,
+} from './codegen';
 import { generateGameplayGpc, generateGameplayGpcStandalone } from './codegen-gameplay';
 
 /**
@@ -7,6 +13,11 @@ import { generateGameplayGpc, generateGameplayGpcStandalone } from './codegen-ga
  *
  * Combines the menu flow (state machine) and gameplay flow (parallel modules)
  * into one cohesive script. Shared variables are declared once and used by both.
+ *
+ * Persistence is coordinated across both flows:
+ *   - SPVAR_0 = data-exists marker
+ *   - SPVAR_1-4 = reserved for user manual use
+ *   - SPVAR_5+ = auto-generated bitpacked data
  */
 export function generateMergedFlowGpc(project: FlowProject): string {
 	const menuFlow = project.flows.find((f) => f.flowType === 'menu');
@@ -30,8 +41,12 @@ export function generateMergedFlowGpc(project: FlowProject): string {
 	}
 
 	// Both flows have content — merge them
+	// Skip persistence in menu codegen — we generate combined persistence below
 	const gameplayResult = generateGameplayGpc(gameplayFlow!);
-	const menuCode = generateFlowGpc(menuFlow!, profileCount);
+	const menuCode = generateFlowGpc(menuFlow!, profileCount, { skipPersistence: true });
+
+	// Collect combined persist vars from all sources
+	const combinedPersistVars = collectCombinedPersistVars(project, menuFlow!, gameplayFlow!, profileCount);
 
 	const lines: string[] = [];
 
@@ -48,6 +63,9 @@ export function generateMergedFlowGpc(project: FlowProject): string {
 	// Imports for common helpers (placed once at the top)
 	lines.push(`import common/helper;`);
 	lines.push(`import common/oled;`);
+	if (combinedPersistVars.length > 0) {
+		lines.push(`import common/bitpack;`);
+	}
 	lines.push('');
 
 	// Profile variables (when multiple profiles are configured)
@@ -112,30 +130,40 @@ export function generateMergedFlowGpc(project: FlowProject): string {
 		lines.push('');
 	}
 
+	// Combined persistence (bitpack-based, covers both flows)
+	if (combinedPersistVars.length > 0) {
+		lines.push(`// ===== PERSISTENCE =====`);
+		lines.push(generateBitpackPersistence(combinedPersistVars));
+		lines.push('');
+	}
+
 	// Merged init block
 	const hasGameplayInit = gameplayResult.initCode.length > 0;
-	if (initStartIdx >= 0) {
-		const initEndIdx = findBlockEnd(menuLines, initStartIdx);
-		lines.push(`// ===== INIT =====`);
-		if (hasGameplayInit) {
-			// Merge: menu init body + gameplay init code
-			lines.push(`init {`);
-			const menuInitBody = menuLines.slice(initStartIdx + 1, initEndIdx);
-			lines.push(`    // --- Menu Init ---`);
-			lines.push(...menuInitBody);
-			lines.push('');
-			lines.push(`    // --- Gameplay Init ---`);
-			lines.push(...gameplayResult.initCode);
-			lines.push(`}`);
-		} else {
-			lines.push(...menuLines.slice(initStartIdx, initEndIdx + 1));
-		}
-		lines.push('');
-	} else if (hasGameplayInit) {
-		// No menu init, but gameplay has init code
+	const needsInit = initStartIdx >= 0 || hasGameplayInit || combinedPersistVars.length > 0;
+
+	if (needsInit) {
 		lines.push(`// ===== INIT =====`);
 		lines.push(`init {`);
-		lines.push(...gameplayResult.initCode);
+
+		if (initStartIdx >= 0) {
+			const initEndIdx = findBlockEnd(menuLines, initStartIdx);
+			const menuInitBody = menuLines.slice(initStartIdx + 1, initEndIdx);
+			if (hasGameplayInit) {
+				lines.push(`    // --- Menu Init ---`);
+			}
+			lines.push(...menuInitBody);
+		}
+
+		if (hasGameplayInit) {
+			if (initStartIdx >= 0) lines.push('');
+			lines.push(`    // --- Gameplay Init ---`);
+			lines.push(...gameplayResult.initCode);
+		}
+
+		if (combinedPersistVars.length > 0) {
+			lines.push(`    Flow_Load();`);
+		}
+
 		lines.push(`}`);
 		lines.push('');
 	}
@@ -169,6 +197,71 @@ export function generateMergedFlowGpc(project: FlowProject): string {
 	lines.push(`}`);
 
 	return lines.join('\n');
+}
+
+// ==================== Persistence Collection ====================
+
+/**
+ * Collect all persist variables from a merged project, deduplicating by name.
+ * Includes shared vars, menu flow vars, gameplay flow vars, and special
+ * array persistence for Weapons_RecoilValues when applicable.
+ */
+function collectCombinedPersistVars(
+	project: FlowProject,
+	menuFlow: FlowGraph,
+	gameplayFlow: FlowGraph,
+	profileCount: number
+): PersistVar[] {
+	const result: PersistVar[] = [];
+	const seen = new Set<string>();
+
+	function addVars(vars: FlowVariable[]) {
+		const pvars = flowVarsToPersistVars(vars, profileCount);
+		for (const pv of pvars) {
+			if (!seen.has(pv.name)) {
+				result.push(pv);
+				seen.add(pv.name);
+			}
+		}
+	}
+
+	// Shared variables
+	const sharedPersist = project.sharedVariables.filter((v) => v.persist);
+	addVars(sharedPersist);
+
+	// Menu flow persist vars
+	if (menuFlow.settings.persistenceEnabled) {
+		addVars(collectPersistVars(menuFlow));
+	}
+
+	// Gameplay flow persist vars (module options with persist: true)
+	addVars(collectPersistVars(gameplayFlow));
+
+	// Special: Weapons_RecoilValues array persistence
+	// When weapondata module exists and a recoil module uses it (not timeline which is hardcoded)
+	const hasWeapondata = gameplayFlow.nodes.some((n) => n.moduleData?.moduleId === 'weapondata');
+	const hasRecoilModule = gameplayFlow.nodes.some(
+		(n) =>
+			n.moduleData?.needsWeapondata &&
+			n.moduleData.moduleId !== 'weapondata' &&
+			n.moduleData.moduleId !== 'antirecoil_timeline'
+	);
+
+	if (hasWeapondata && hasRecoilModule && !seen.has('Weapons_RecoilValues')) {
+		result.push({
+			name: 'Weapons_RecoilValues',
+			min: -100,
+			max: 100,
+			defaultValue: 0,
+			arrayLoop: {
+				countExpr: 'WEAPON_COUNT * 2',
+				indexVar: '_bp_loop_i',
+			},
+		});
+		seen.add('Weapons_RecoilValues');
+	}
+
+	return result;
 }
 
 // ==================== Helpers ====================

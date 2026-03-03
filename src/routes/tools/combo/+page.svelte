@@ -138,7 +138,7 @@
 
 <div class="flex h-full flex-col bg-zinc-950">
 	<!-- Header -->
-	<ToolHeader title="Combo Maker">
+	<ToolHeader title="Combo Maker" subtitle="Design button combos with visual step editing">
 		<!-- Combo name -->
 		<input
 			type="text"

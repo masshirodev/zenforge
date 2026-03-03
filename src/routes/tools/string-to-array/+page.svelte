@@ -61,7 +61,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-zinc-950 text-zinc-100">
-	<ToolHeader title="String to GPC Array" />
+	<ToolHeader title="String to GPC Array" subtitle="Convert text strings to GPC-compatible byte arrays" />
 
 	<div class="flex min-h-0 flex-1">
 		<!-- Input panel -->

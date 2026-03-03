@@ -8,6 +8,20 @@ status_var = "LeanSpamStatus"
 trigger = "if (LeanSpamStatus && get_val(PS5_L2) && get_val(PS5_R2)) {\n    combo_run(LeanSpam);\n}\nif (!get_val(PS5_R2) && combo_running(LeanSpam)) {\n    combo_stop(LeanSpam);\n}"
 combo = "combo LeanSpam {\n    set_val(LEANSPAM_LEAN_RIGHT_BTN, 100);\n    wait(jitter(100));\n    set_val(LEANSPAM_LEAN_RIGHT_BTN, 0);\n    wait(jitter(LeanSpamSpeed));\n    set_val(LEANSPAM_LEAN_LEFT_BTN, 100);\n    wait(jitter(100));\n    set_val(LEANSPAM_LEAN_LEFT_BTN, 0);\n    wait(jitter(LeanSpamSpeed));\n}"
 
+[[leanspam.options]]
+name = "Status"
+var = "LeanSpamStatus"
+type = "toggle"
+default = 0
+
+[[leanspam.options]]
+name = "Speed"
+var = "LeanSpamSpeed"
+type = "value"
+min = 20
+max = 500
+default = 100
+
 [[leanspam.params]]
 key = "lean_right_btn"
 prompt = "Lean right button"
@@ -19,8 +33,3 @@ key = "lean_left_btn"
 prompt = "Lean left button"
 type = "button"
 default = "PS5_L3"
-
-options = [
-    { name = "Status", var = "LeanSpamStatus", type = "toggle", default = 0 },
-    { name = "Speed", var = "LeanSpamSpeed", type = "value", min = 20, max = 500, default = 100 },
-]

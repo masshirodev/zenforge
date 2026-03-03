@@ -24,6 +24,7 @@ export type SubNodeType =
 	| 'menu-item'
 	| 'toggle-item'
 	| 'value-item'
+	| 'array-item'
 	| 'scroll-bar'
 	| 'text-line'
 	| 'bar'
@@ -141,6 +142,8 @@ export interface ModuleNodeData {
 	extraVars: Record<string, string>;
 	conflicts: string[];
 	needsWeapondata: boolean;
+	/** Weapon names for weapondata modules — generates Weapons[] array and WEAPON_COUNT */
+	weaponNames?: string[];
 }
 
 export interface FlowVariable {

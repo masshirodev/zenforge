@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DrawTool, BrushShape, TextState, FontSize } from './types';
+	import type { DrawTool, BrushShape, TextState, FontSize, TextAlign } from './types';
 
 	interface Props {
 		tool: DrawTool;
@@ -21,6 +21,11 @@
 		$props();
 
 	const fontSizes: FontSize[] = ['3x5', '5x7', '8x8'];
+	const alignments: { id: TextAlign; label: string; icon: string }[] = [
+		{ id: 'left', label: 'Left', icon: 'M3 6h18M3 12h12M3 18h15' },
+		{ id: 'center', label: 'Center', icon: 'M3 6h18M6 12h12M5 18h14' },
+		{ id: 'right', label: 'Right', icon: 'M3 6h18M9 12h12M6 18h15' },
+	];
 
 	const tools: { id: DrawTool; label: string; key: string; icon: string }[] = [
 		{ id: 'pen', label: 'Pen', key: 'P', icon: 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z' },
@@ -29,7 +34,8 @@
 		{ id: 'rect', label: 'Rect', key: 'R', icon: 'M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z' },
 		{ id: 'ellipse', label: 'Ellipse', key: 'O', icon: 'M12 6a8 4 0 100 12 8 4 0 000-12z' },
 		{ id: 'fill', label: 'Fill', key: 'G', icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12V9' },
-		{ id: 'text', label: 'Text', key: 'T', icon: 'M4 6h16M4 6v2m16-2v2M7 6v12m0 0h2m-2 0H5m12-12v12m0 0h2m-2 0h-2' }
+		{ id: 'text', label: 'Text', key: 'T', icon: 'M4 6h16M4 6v2m16-2v2M7 6v12m0 0h2m-2 0H5m12-12v12m0 0h2m-2 0h-2' },
+		{ id: 'move', label: 'Move', key: 'M', icon: 'M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20' },
 	];
 </script>
 
@@ -37,7 +43,7 @@
 	<!-- Tools -->
 	<div>
 		<h3 class="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">Tools</h3>
-		<div class="grid grid-cols-3 gap-1">
+		<div class="grid grid-cols-4 gap-1">
 			{#each tools as t}
 				<button
 					class="flex flex-col items-center gap-0.5 rounded px-1.5 py-1.5 text-xs transition-colors
@@ -161,6 +167,25 @@
 								onclick={() => onTextChange({ ...textState, fontSize: size })}
 							>
 								{size}
+							</button>
+						{/each}
+					</div>
+				</div>
+				<div>
+					<span class="text-xs text-zinc-400">Alignment</span>
+					<div class="mt-1 flex gap-1">
+						{#each alignments as a}
+							<button
+								class="flex flex-1 items-center justify-center rounded px-2 py-1 text-xs {textState.align === a.id
+									? 'bg-emerald-600/20 text-emerald-400'
+									: 'text-zinc-400 hover:bg-zinc-800'}"
+								onclick={() => onTextChange({ ...textState, align: a.id })}
+								title="{a.label} align"
+							>
+								<svg class="mr-1 h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d={a.icon} />
+								</svg>
+								{a.label}
 							</button>
 						{/each}
 					</div>

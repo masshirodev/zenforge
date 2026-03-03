@@ -30,7 +30,9 @@ export function syncModuleMenus(project: FlowProject): boolean {
 	const menuFlow = project.flows.find((f) => f.flowType === 'menu');
 	if (!gameplayFlow || !menuFlow) return false;
 
-	const moduleNodes = gameplayFlow.nodes.filter((n) => n.type === 'module' && n.moduleData);
+	const allModuleNodes = gameplayFlow.nodes.filter((n) => n.type === 'module' && n.moduleData);
+	// Only modules with options get menu items — data-only modules (e.g. weapondata) are skipped
+	const moduleNodes = allModuleNodes.filter((n) => n.moduleData!.options.length > 0);
 	const moduleMap = new Map(moduleNodes.map((n) => [n.moduleData!.moduleId, n]));
 	const activeModuleIds = new Set(moduleMap.keys());
 
@@ -171,10 +173,7 @@ export function syncModuleMenus(project: FlowProject): boolean {
 			}
 		}
 
-		// Re-index order
-		submenuNode.subNodes.forEach((s, i) => (s.order = i));
-
-		// --- Reconcile submenu variables ---
+		// --- Reconcile submenu variables (add missing, never remove) ---
 		const existingNodeVars = new Set(submenuNode.variables.map((v) => v.name));
 		for (const opt of desiredOptions) {
 			if (!existingNodeVars.has(opt.variable)) {
@@ -189,10 +188,6 @@ export function syncModuleMenus(project: FlowProject): boolean {
 				changed = true;
 			}
 		}
-		// Remove stale variables
-		const prevVarLen = submenuNode.variables.length;
-		submenuNode.variables = submenuNode.variables.filter((v) => desiredVarSet.has(v.name));
-		if (submenuNode.variables.length !== prevVarLen) changed = true;
 
 		// --- Reconcile edge from parent menu-item to submenu ---
 		const menuItemSub = parentNode!.subNodes.find(
@@ -250,9 +245,9 @@ export function syncModuleMenus(project: FlowProject): boolean {
 		changed = true;
 	}
 
-	// --- Sync shared variables ---
+	// --- Sync shared variables (all modules, including data-only) ---
 	const allSharedVarNames = new Set<string>();
-	for (const modNode of moduleNodes) {
+	for (const modNode of allModuleNodes) {
 		const md = modNode.moduleData!;
 		allSharedVarNames.add(md.enableVariable);
 		for (const opt of md.options) {
@@ -260,7 +255,7 @@ export function syncModuleMenus(project: FlowProject): boolean {
 		}
 	}
 
-	for (const modNode of moduleNodes) {
+	for (const modNode of allModuleNodes) {
 		const md = modNode.moduleData!;
 		if (!project.sharedVariables.some((v) => v.name === md.enableVariable)) {
 			project.sharedVariables.push({

@@ -41,7 +41,7 @@
 	let brush = $state<BrushShape>({ type: 'square', width: 1, height: 1 });
 	let shapeFilled = $state(true);
 	let animationConfig = $state<AnimationConfig>({ frameDelayMs: 500, loop: true });
-	let textState = $state<TextState>({ text: '', fontSize: '5x7', originX: -1, originY: -1 });
+	let textState = $state<TextState>({ text: '', fontSize: '5x7', align: 'left', originX: -1, originY: -1 });
 	let showImport = $state(false);
 	let showExport = $state(false);
 	let showPresets = $state(false);
@@ -178,7 +178,7 @@
 		handleBeforeDraw();
 		const font = getFont(textState.fontSize);
 		const updated = clonePixels(activeScene.pixels);
-		drawText(updated, textState.text, textState.originX, textState.originY, font, true);
+		drawText(updated, textState.text, textState.originX, textState.originY, font, true, textState.align);
 		handleDraw(updated);
 		textState = { ...textState, text: '', originX: -1, originY: -1 };
 	}
@@ -272,6 +272,7 @@
 				case 'o': tool = 'ellipse'; textState = { ...textState, originX: -1, originY: -1 }; break;
 				case 'g': tool = 'fill'; textState = { ...textState, originX: -1, originY: -1 }; break;
 				case 't': tool = 'text'; break;
+				case 'm': tool = 'move'; textState = { ...textState, originX: -1, originY: -1 }; break;
 				case '[':
 					brush = { ...brush, width: Math.max(1, brush.width - 1), height: Math.max(1, brush.height - 1) };
 					break;
@@ -402,6 +403,9 @@
 			</span>
 			<span>
 				<kbd class="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400">T</kbd> text
+			</span>
+			<span>
+				<kbd class="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400">M</kbd> move
 			</span>
 			<span>
 				<kbd class="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400">Ctrl+Z</kbd> undo

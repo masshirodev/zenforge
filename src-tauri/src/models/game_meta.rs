@@ -16,6 +16,9 @@ pub struct GameMeta {
     pub generation_mode: String,
     #[serde(default)]
     pub tags: Option<Vec<String>>,
+    /// User-defined comments to include in the built output file header
+    #[serde(default)]
+    pub header_comments: Option<String>,
 }
 
 fn default_generation_mode() -> String {

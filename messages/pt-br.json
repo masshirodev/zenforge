@@ -1,6 +1,5 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
 	"common_cancel": "Cancelar",
 	"common_confirm": "Confirmar",
 	"common_save": "Salvar",
@@ -24,7 +23,6 @@
 	"common_creating": "Criando...",
 	"common_importing": "Importando...",
 	"common_building": "Compilando...",
-
 	"settings_title": "Configurações",
 	"settings_language": "Idioma",
 	"settings_language_label": "Idioma da Interface",
@@ -66,7 +64,6 @@
 	"settings_keybindings_click_to_rebind": "Clique para redefinir",
 	"settings_keybindings_reset_to_default": "Redefinir para padrão",
 	"settings_reset_defaults": "Restaurar padrões",
-
 	"layout_sidebar_dashboard": "Painel Principal",
 	"layout_sidebar_pinned": "Fixados",
 	"layout_sidebar_recent": "Recentes",
@@ -102,20 +99,17 @@
 	"layout_sidebar_tool_plugins": "Plugins",
 	"layout_sidebar_tool_compare_games": "Comparar Jogos",
 	"layout_sidebar_tool_simulator": "Simulador de Combo",
-	"layout_sidebar_tool_keyboard_mapper": "Mapeador de Teclado",
+	"layout_sidebar_tool_keyboard_mapper": "Mapeador",
 	"layout_sidebar_tool_documentation": "Documentação",
-
 	"layout_statusbar_no_game": "Nenhum jogo selecionado",
 	"layout_statusbar_lsp_running": "GPC LSP",
 	"layout_statusbar_lsp_starting": "LSP Iniciando...",
 	"layout_statusbar_lsp_error": "Erro no LSP",
 	"layout_statusbar_notifications": "Notificações",
-
 	"layout_titlebar_minimize": "Minimizar",
 	"layout_titlebar_maximize": "Maximizar",
 	"layout_titlebar_restore": "Restaurar",
 	"layout_titlebar_close": "Fechar",
-
 	"layout_bottompanel_problems": "Problemas",
 	"layout_bottompanel_search": "Busca",
 	"layout_bottompanel_references": "Referências",
@@ -126,23 +120,19 @@
 	"layout_bottompanel_clear_logs": "Limpar logs",
 	"layout_bottompanel_clear_terminal": "Limpar terminal",
 	"layout_bottompanel_close": "Fechar painel (Ctrl+J)",
-
 	"layout_notifications_title": "Notificações",
 	"layout_notifications_clear_all": "Limpar tudo",
 	"layout_notifications_empty": "Nenhuma notificação ainda",
 	"layout_notifications_just_now": "agora mesmo",
 	"layout_notifications_minutes_ago": "{count}min atrás",
 	"layout_notifications_hours_ago": "{count}h atrás",
-
 	"layout_cmdpalette_placeholder": "Digite um comando...",
 	"layout_cmdpalette_no_matches": "Nenhum comando encontrado",
-
 	"layout_setup_title": "Configurar Área de Trabalho",
 	"layout_setup_description": "Um diretório de trabalho é necessário para armazenar seus scripts de jogo. Escolha um local personalizado ou use o padrão.",
 	"layout_setup_use_default": "Usar Diretório Padrão",
 	"layout_setup_choose_custom": "Escolher Diretório Personalizado",
 	"layout_close_sidebar": "Fechar barra lateral",
-
 	"editor_select_file": "Selecione um arquivo para editar",
 	"editor_subtab_visual": "Visual",
 	"editor_subtab_code": "Código",
@@ -151,7 +141,6 @@
 	"editor_split_close": "Fechar divisão",
 	"editor_split_open": "Dividir editor",
 	"editor_open_external": "Abrir no editor externo",
-
 	"editor_build_button": "Compilar Jogo",
 	"editor_build_succeeded": "Compilação bem-sucedida",
 	"editor_build_failed": "Compilação falhou",
@@ -169,11 +158,9 @@
 	"editor_build_sending_zen_studio": "Enviando...",
 	"editor_build_zen_studio_success": "Script servido — Zen Studio deve abrir no seu navegador",
 	"editor_build_zen_studio_error": "Falha ao servir o script: {error}",
-
 	"editor_filetree_new_file": "Novo Arquivo",
 	"editor_filetree_import_template": "Importar Modelo",
 	"editor_filetree_delete_file": "Excluir arquivo",
-
 	"editor_overview_metadata": "Metadados do Jogo",
 	"editor_overview_name": "Nome",
 	"editor_overview_game_type": "Tipo de Jogo",
@@ -192,12 +179,10 @@
 	"editor_overview_add_tag_placeholder": "Adicionar tag...",
 	"editor_overview_save_as_template": "Salvar como Modelo",
 	"editor_overview_export_zip": "Exportar como Zip",
-
 	"modal_new_file_title": "Novo Arquivo",
 	"modal_new_file_filename_label": "Nome do Arquivo",
 	"modal_new_file_filename_placeholder": "ex. custom.gpc",
 	"modal_new_file_hint": "A extensão .gpc será adicionada automaticamente se não for fornecida",
-
 	"modal_save_template_title": "Salvar como Modelo de Projeto",
 	"modal_save_template_name_label": "Nome do Modelo",
 	"modal_save_template_name_placeholder": "Meu Modelo",
@@ -205,7 +190,6 @@
 	"modal_save_template_description_placeholder": "Para que serve este modelo...",
 	"modal_save_template_workspace_label": "Salvar na Área de Trabalho",
 	"modal_save_template_save": "Salvar Modelo",
-
 	"modal_template_import_title": "Importar Modelo",
 	"modal_template_import_loading": "Carregando modelos...",
 	"modal_template_import_description": "Selecione um arquivo de modelo para importar para o seu jogo. Arquivos Comuns fornecem funções auxiliares, enquanto arquivos de Desenho contêm utilitários de display OLED.",
@@ -214,9 +198,7 @@
 	"modal_template_import_no_templates": "Nenhum modelo encontrado",
 	"modal_template_import_back_to_list": "Voltar à lista",
 	"modal_template_import_button": "Importar Modelo",
-
 	"modal_new_from_template_title": "Novo a Partir de Modelo",
-
 	"dashboard_subtitle": "IDE Desktop para scripts de jogos Cronus Zen",
 	"dashboard_new_game": "Novo Jogo",
 	"dashboard_flow_editor": "Editor de Fluxo",
@@ -228,7 +210,6 @@
 	"dashboard_search_placeholder": "Buscar jogos...",
 	"dashboard_no_matches": "Nenhum jogo encontrado para \"{query}\"",
 	"dashboard_delete_game": "Excluir jogo",
-
 	"wizard_title": "Novo Jogo",
 	"wizard_back_to_dashboard": "Voltar ao painel principal",
 	"wizard_step_game_info": "Info do Jogo",
@@ -256,14 +237,12 @@
 	"wizard_output": "Saída: {path}",
 	"wizard_continue": "Continuar",
 	"wizard_create_game": "Criar Jogo",
-
 	"page_tab_overview": "Visão Geral",
 	"page_tab_files": "Arquivos",
 	"page_tab_flow": "Fluxo",
 	"page_tab_build": "Compilação",
 	"page_tab_history": "Histórico",
 	"page_tab_git": "Git",
-
 	"cmd_save_file": "Salvar Arquivo",
 	"cmd_build_game": "Compilar Jogo",
 	"cmd_toggle_bottom": "Alternar Painel Inferior",
@@ -285,7 +264,6 @@
 	"cmd_category_search": "Busca",
 	"cmd_category_navigate": "Navegar",
 	"cmd_category_lsp": "LSP",
-
 	"toast_snapshot_created": "Snapshot criado",
 	"toast_config_restored": "Configuração restaurada do snapshot",
 	"toast_snapshot_deleted": "Snapshot excluído",
@@ -300,7 +278,6 @@
 	"toast_failed_import_template": "Falha ao importar modelo: {error}",
 	"toast_failed_read_template": "Falha ao ler modelo: {error}",
 	"toast_failed_save_tags": "Falha ao salvar tags: {error}",
-
 	"confirm_rollback_title": "Reverter Configuração",
 	"confirm_rollback_message": "Restaurar este snapshot? Sua configuração atual será salva automaticamente primeiro.",
 	"confirm_rollback_button": "Reverter",
@@ -311,7 +288,6 @@
 	"confirm_file_changed_title": "Arquivo Alterado",
 	"confirm_file_changed_message": "\"{name}\" foi modificado externamente. Recarregar e descartar alterações locais?",
 	"confirm_file_changed_button": "Recarregar",
-
 	"keybinding_save_file": "Salvar Arquivo",
 	"keybinding_build_game": "Compilar Jogo",
 	"keybinding_toggle_bottom_panel": "Alternar Painel Inferior",
@@ -321,7 +297,6 @@
 	"keybinding_category_build": "Compilação",
 	"keybinding_category_ui": "Interface",
 	"keybinding_category_search": "Busca",
-
 	"sprite_title": "Importar Sprite Sheet",
 	"sprite_subtitle": "Importar sprite sheets para coleções",
 	"sprite_load_image": "Carregar Imagem",
@@ -342,7 +317,6 @@
 	"sprite_select_image": "Por favor selecione um arquivo de imagem",
 	"sprite_select_workspace": "Selecione um workspace para salvar sprites",
 	"sprite_no_workspaces": "Nenhum workspace configurado",
-
 	"sprite_editor_title": "Editor de Sprites",
 	"sprite_editor_pen": "Caneta",
 	"sprite_editor_eraser": "Borracha",
@@ -352,7 +326,6 @@
 	"sprite_editor_clear": "Limpar",
 	"sprite_editor_invert": "Inverter",
 	"sprite_editor_done": "Pronto",
-
 	"sprite_stamp_title": "Carimbar Sprite",
 	"sprite_stamp_select": "Selecione um sprite para carimbar",
 	"sprite_stamp_no_collections": "Nenhuma coleção de sprites encontrada",

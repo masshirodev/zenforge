@@ -821,11 +821,30 @@ fn build_game_impl(
         expanded.push('\n');
     }
 
+    // Read optional header comments from game.json
+    let header_comments = {
+        let meta_path = game_dir.join("game.json");
+        if meta_path.exists() {
+            std::fs::read_to_string(&meta_path)
+                .ok()
+                .and_then(|content| serde_json::from_str::<GameMeta>(&content).ok())
+                .and_then(|meta| meta.header_comments)
+        } else {
+            None
+        }
+    };
+
     // Write output
-    let header = format!(
-        "// GENERATED FILE - DO NOT EDIT\n// Source: {}\n\n",
+    let mut header = format!(
+        "// GENERATED FILE - DO NOT EDIT\n// Source: {}\n",
         main_path.display()
     );
+    if let Some(ref comments) = header_comments {
+        for line in comments.lines() {
+            header.push_str(&format!("// {}\n", line));
+        }
+    }
+    header.push('\n');
     let final_content = format!("{}{}", header, expanded);
 
     if let Err(e) = std::fs::write(&output_path, &final_content) {

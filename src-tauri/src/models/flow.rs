@@ -110,6 +110,8 @@ pub struct ModuleNodeData {
     pub conflicts: Vec<String>,
     #[serde(default)]
     pub needs_weapondata: bool,
+    #[serde(default)]
+    pub weapon_names: Option<Vec<String>>,
 }
 
 /// A configurable option on a module node
@@ -163,6 +165,8 @@ pub struct FlowCondition {
     pub r#type: String, // button_press, button_hold, timeout, variable, custom
     #[serde(default)]
     pub button: Option<String>,
+    #[serde(default)]
+    pub modifiers: Option<Vec<String>>,
     #[serde(default)]
     pub timeout_ms: Option<u32>,
     #[serde(default)]

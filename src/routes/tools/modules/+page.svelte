@@ -358,7 +358,7 @@
 
 <div class="flex h-full flex-col bg-zinc-950 text-zinc-200">
 	<!-- Top Bar -->
-	<ToolHeader title="Module Manager">
+	<ToolHeader title="Module Manager" subtitle="Browse, install, and configure game modules">
 		{#if mode === 'browse'}
 			<div class="ml-auto flex items-center gap-2">
 				<button

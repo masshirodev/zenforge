@@ -2,40 +2,34 @@
 display_name = "Anti Recoil (Basic)"
 id = "antirecoil"
 type = "fps"
-description = "Compensates for weapon recoil while firing by pulling the right stick down.\nApplies randomized variance to vertical and horizontal correction for natural feel.\nUses a single set of V/H values (not per-weapon)."
+description = "Per-weapon anti-recoil compensation while firing.\nApplies randomized variance to vertical and horizontal correction for natural feel.\nUses per-weapon V/H values from weapon data."
 state_display = "AR"
 status_var = "AntiRecoilStatus"
 has_quick_toggle = true
+needs_weapondata = true
 conflicts = [
     "antirecoil_decay",
     "antirecoil_timeline",
 ]
 trigger = "if (AntiRecoilStatus && get_val(PS5_L2) && get_val(PS5_R2)) {\n    AntiRecoil_Timer++;\n    if (AntiRecoil_Timer >= ANTIRECOIL_INIT_DELAY) {\n        combo_run(AntiRecoil);\n    }\n} else {\n    AntiRecoil_Timer = 0;\n}"
-combo = "define ANTIRECOIL_INIT_DELAY = 15;  // Skip first ~150ms of firing (minimal recoil)\n\ncombo AntiRecoil {\n    // Advance LCG seed every cycle for well-distributed variance\n    _jitter_seed = (_jitter_seed * 1103515245 + 12345) ^ get_rtime();\n\n    // Per-cycle variance: ±15% of base value, V and H derived independently\n    random_variance_v = (abs(_jitter_seed) % 31) - 15;\n    random_variance_h = (abs(_jitter_seed / 31) % 23) - 11;\n\n    if (Recoil_Vertical != 0) {\n        set_val(PS5_RY, clamp(get_val(PS5_RY) + Recoil_Vertical + (random_variance_v * abs(Recoil_Vertical) / 100), -100, 100));\n    }\n    if (Recoil_Horizontal != 0) {\n        set_val(PS5_RX, clamp(get_val(PS5_RX) + Recoil_Horizontal + (random_variance_h * abs(Recoil_Horizontal) / 100), -100, 100));\n    }\n}"
+combo = "define ANTIRECOIL_INIT_DELAY = 15;  // Skip first ~150ms of firing (minimal recoil)\n\ncombo AntiRecoil {\n    active_weapon = GetActiveWeapon();\n\n    // Per-weapon recoil values\n    Recoil_Vertical = Weapons_RecoilValues[active_weapon * 2];\n    Recoil_Horizontal = Weapons_RecoilValues[active_weapon * 2 + 1];\n\n    // Advance LCG seed every cycle for well-distributed variance\n    _jitter_seed = (_jitter_seed * 1103515245 + 12345) ^ get_rtime();\n\n    // Per-cycle variance: ±15% of base value, V and H derived independently\n    random_variance_v = (abs(_jitter_seed) % 31) - 15;\n    random_variance_h = (abs(_jitter_seed / 31) % 23) - 11;\n\n    if (Recoil_Vertical != 0) {\n        set_val(PS5_RY, clamp(get_val(PS5_RY) + Recoil_Vertical + (random_variance_v * abs(Recoil_Vertical) / 100), -100, 100));\n    }\n    if (Recoil_Horizontal != 0) {\n        set_val(PS5_RX, clamp(get_val(PS5_RX) + Recoil_Horizontal + (random_variance_h * abs(Recoil_Horizontal) / 100), -100, 100));\n    }\n}\n\nfunction AntiRecoil_RenderSubmenu() {\n    Clear();\n\n    if (AntiRecoil_SubPage == 0) {\n        // Page 0: Weapon selector + Status + Vertical\n        draw_scroll_dynamic(AntiRecoil_SubPage, 1);\n        XSelect(rect_y);\n\n        // Row 1: Weapon selector\n        print(32, 11, OLED_FONT_SMALL, OLED_WHITE, Weapons[AR_EditWeapon]);\n        if (rect_y == 12) {\n            if (event_press(RIGHT_BTN)) {\n                AR_EditWeapon++;\n                if (AR_EditWeapon > WEAPON_MAX_INDEX) { AR_EditWeapon = 0; }\n                DrewStates = FALSE;\n            }\n            if (event_press(LEFT_BTN)) {\n                AR_EditWeapon--;\n                if (AR_EditWeapon < 0) { AR_EditWeapon = WEAPON_MAX_INDEX; }\n                DrewStates = FALSE;\n            }\n        }\n\n        // Row 2: Status toggle\n        print(32, 27, OLED_FONT_SMALL, OLED_WHITE, AntiRecoil_OptionText[0]);\n        drawing_toggle(110, 27, AntiRecoilStatus);\n        if (rect_y == 28) {\n            if (event_press(RIGHT_BTN) || event_press(LEFT_BTN)) {\n                AntiRecoilStatus = !AntiRecoilStatus;\n            }\n        }\n\n        // Row 3: Vertical recoil for selected weapon\n        print(32, 43, OLED_FONT_SMALL, OLED_WHITE, AntiRecoil_OptionText[1]);\n        PrintNumber(Weapons_RecoilValues[AR_EditWeapon * 2], find_digits(abs(Weapons_RecoilValues[AR_EditWeapon * 2])) + 1, 98, 43, OLED_FONT_SMALL);\n        if (rect_y == 44) {\n            if (get_val(ADS_BTN) && event_press(RIGHT_BTN)) { Weapons_RecoilValues[AR_EditWeapon * 2] += 10; }\n            else if (event_press(RIGHT_BTN)) { Weapons_RecoilValues[AR_EditWeapon * 2]++; }\n            if (get_val(ADS_BTN) && event_press(LEFT_BTN)) { Weapons_RecoilValues[AR_EditWeapon * 2] -= 10; }\n            else if (event_press(LEFT_BTN)) { Weapons_RecoilValues[AR_EditWeapon * 2]--; }\n        }\n    } else {\n        // Page 1: Horizontal recoil\n        draw_scroll_dynamic(AntiRecoil_SubPage, 1);\n        XSelect(rect_y);\n\n        // Row 1: Horizontal recoil for selected weapon\n        print(32, 11, OLED_FONT_SMALL, OLED_WHITE, AntiRecoil_OptionText[2]);\n        PrintNumber(Weapons_RecoilValues[AR_EditWeapon * 2 + 1], find_digits(abs(Weapons_RecoilValues[AR_EditWeapon * 2 + 1])) + 1, 98, 11, OLED_FONT_SMALL);\n        if (rect_y == 12) {\n            if (get_val(ADS_BTN) && event_press(RIGHT_BTN)) { Weapons_RecoilValues[AR_EditWeapon * 2 + 1] += 10; }\n            else if (event_press(RIGHT_BTN)) { Weapons_RecoilValues[AR_EditWeapon * 2 + 1]++; }\n            if (get_val(ADS_BTN) && event_press(LEFT_BTN)) { Weapons_RecoilValues[AR_EditWeapon * 2 + 1] -= 10; }\n            else if (event_press(LEFT_BTN)) { Weapons_RecoilValues[AR_EditWeapon * 2 + 1]--; }\n        }\n    }\n\n    // Navigation\n    if (event_press(UP_BTN)) { rect_y -= 16; }\n    if (event_press(DOWN_BTN)) { rect_y += 16; }\n\n    // Page boundaries\n    if (AntiRecoil_SubPage == 0) {\n        if (rect_y < 12) { rect_y = 12; }\n        if (rect_y > 44) {\n            AntiRecoil_SubPage = 1;\n            rect_y = 12;\n        }\n    } else {\n        if (rect_y < 12) {\n            AntiRecoil_SubPage = 0;\n            rect_y = 44;\n        }\n        if (rect_y > 12) { rect_y = 12; }\n    }\n\n    // Value bounds\n    if (Weapons_RecoilValues[AR_EditWeapon * 2] < -100) { Weapons_RecoilValues[AR_EditWeapon * 2] = -100; }\n    if (Weapons_RecoilValues[AR_EditWeapon * 2] > 100) { Weapons_RecoilValues[AR_EditWeapon * 2] = 100; }\n    if (Weapons_RecoilValues[AR_EditWeapon * 2 + 1] < -100) { Weapons_RecoilValues[AR_EditWeapon * 2 + 1] = -100; }\n    if (Weapons_RecoilValues[AR_EditWeapon * 2 + 1] > 100) { Weapons_RecoilValues[AR_EditWeapon * 2 + 1] = 100; }\n\n    // Exit\n    if (event_press(CANCEL_BTN)) {\n        if (AntiRecoil_SubPage > 0) {\n            AntiRecoil_SubPage = 0;\n            rect_y = 12;\n        } else {\n            Menu = 1;\n            rect_y = 12;\n            AntiRecoil_SubPage = 0;\n            _CoreSave();\n        }\n    }\n}"
+options = [
+    { name = "Status", var = "AntiRecoilStatus", type = "toggle", default = 0 },
+    { name = "V Mod.", var = "AR_TempV", type = "value", default = 0, min = -100, max = 100 },
+    { name = "H Mod.", var = "AR_TempH", type = "value", default = 0, min = -100, max = 100 },
+]
 
-[[antirecoil.options]]
-name = "Status"
-var = "AntiRecoilStatus"
-type = "toggle"
-default = 0
-
-[[antirecoil.options]]
-name = "Vertical"
-var = "Recoil_Vertical"
-type = "value"
-min = -100
-max = 100
-default = 15
-
-[[antirecoil.options]]
-name = "Horizontal"
-var = "Recoil_Horizontal"
-type = "value"
-min = -100
-max = 100
-default = 0
+[antirecoil.config_menu]
+name = "Anti Recoil"
+type = "clickable"
+render_function = "AntiRecoil_RenderSubmenu"
 
 [antirecoil.extra_vars]
 random_variance_v = "int"
 random_variance_h = "int"
 AntiRecoil_Timer = "int"
+Recoil_Vertical = "int"
+Recoil_Horizontal = "int"
+active_weapon = "int"
+AR_EditWeapon = "int"
+AntiRecoil_SubPage = "int"

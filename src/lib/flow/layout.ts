@@ -115,11 +115,16 @@ export function getPortPosition(
 export function computeSubNodePixelY(node: FlowNode, subNode: SubNode): number {
 	if (subNode.position === 'absolute') return subNode.y ?? 0;
 
+	// Pixel-art sub-nodes are full-screen overlays — always render at their own Y offset
+	if (subNode.type === 'pixel-art') return subNode.y ?? 0;
+
 	const stacked = getSortedSubNodes(node).filter((sn) => sn.position === 'stack');
 	let y = node.stackOffsetY;
 	for (const sn of stacked) {
 		if (sn.id === subNode.id) return y;
 		const def = getSubNodeDef(sn.type);
+		// Skip pixel-art height in stack accumulation since they overlay
+		if (sn.type === 'pixel-art') continue;
 		y += def?.stackHeight ?? 8;
 	}
 	return y;

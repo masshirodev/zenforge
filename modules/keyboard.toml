@@ -4,6 +4,11 @@ id = "keyboard"
 type = "fps"
 description = "Keyboard-to-controller mapping for KBM setups.\nMaps keyboard keys to controller buttons via GetKeyboardKey() helper."
 requires_keyboard_file = true
-trigger = "// Keyboard-to-controller mapping\nApplyKeyboard();"
+trigger = "// Keyboard-to-controller mapping\nif (KeyboardStatus) {\n    ApplyKeyboard();\n}"
 combo = "// Keyboard-to-controller mapping function\n// Uses GetKeyboardKey() from helper.gpc for proper modifier handling\nfunction ApplyKeyboard() {\n    // Mouse config is set in Zen Studio\n    // Uncomment and configure keyboard-to-controller mappings below\n\n    // D-pad\n    // if (GetKeyboardKey(KEY_UP)) { set_val(PS5_UP, 100); }\n    // if (GetKeyboardKey(KEY_DOWN)) { set_val(PS5_DOWN, 100); }\n    // if (GetKeyboardKey(KEY_LEFT)) { set_val(PS5_LEFT, 100); }\n    // if (GetKeyboardKey(KEY_RIGHT)) { set_val(PS5_RIGHT, 100); }\n\n    // Face buttons\n    // if (GetKeyboardKey(KEY_SPACE)) { set_val(PS5_CROSS, 100); }\n    // if (GetKeyboardKey(KEY_C)) { set_val(PS5_CIRCLE, 100); }\n    // if (GetKeyboardKey(KEY_X)) { set_val(PS5_SQUARE, 100); }\n    // if (GetKeyboardKey(KEY_Z)) { set_val(PS5_TRIANGLE, 100); }\n\n    // Bumpers and triggers\n    // if (GetKeyboardKey(KEY_Q)) { set_val(PS5_L1, 100); }\n    // if (GetKeyboardKey(KEY_E)) { set_val(PS5_R1, 100); }\n    // if (get_val(BUTTON_5)) { set_val(PS5_L2, 100); }  // Mouse button (use get_val)\n    // if (get_val(BUTTON_4)) { set_val(PS5_R2, 100); }  // Mouse button (use get_val)\n\n    // Stick clicks\n    // if (GetKeyboardKey(KEY_CTRL)) { set_val(PS5_L3, 100); }\n    // if (GetKeyboardKey(KEY_V)) { set_val(PS5_R3, 100); }\n\n    // System buttons\n    // if (GetKeyboardKey(KEY_ESC)) { set_val(PS5_OPTIONS, 100); }\n    // if (GetKeyboardKey(KEY_TAB)) { set_val(PS5_SHARE, 100); }\n\n    // Left stick (WASD)\n    // if (GetKeyboardKey(KEY_A)) { set_val(PS5_LX, -100); }  // Left\n    // if (GetKeyboardKey(KEY_D)) { set_val(PS5_LX, 100); }   // Right\n    // if (GetKeyboardKey(KEY_W)) { set_val(PS5_LY, -100); }  // Forward\n    // if (GetKeyboardKey(KEY_S)) { set_val(PS5_LY, 100); }   // Back\n\n    // Right stick (arrow keys)\n    // if (GetKeyboardKey(KEY_J)) { set_val(PS5_RX, -100); }  // Left\n    // if (GetKeyboardKey(KEY_L)) { set_val(PS5_RX, 100); }   // Right\n    // if (GetKeyboardKey(KEY_I)) { set_val(PS5_RY, -100); }  // Up\n    // if (GetKeyboardKey(KEY_K)) { set_val(PS5_RY, 100); }   // Down\n}"
-options = []
+
+[[keyboard.options]]
+name = "Status"
+var = "KeyboardStatus"
+type = "toggle"
+default = 0

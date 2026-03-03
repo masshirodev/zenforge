@@ -1,6 +1,5 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
 	"common_cancel": "Cancel",
 	"common_confirm": "Confirm",
 	"common_save": "Save",
@@ -24,7 +23,6 @@
 	"common_creating": "Creating...",
 	"common_importing": "Importing...",
 	"common_building": "Building...",
-
 	"settings_title": "Settings",
 	"settings_language": "Language",
 	"settings_language_label": "Interface Language",
@@ -66,7 +64,6 @@
 	"settings_keybindings_click_to_rebind": "Click to rebind",
 	"settings_keybindings_reset_to_default": "Reset to default",
 	"settings_reset_defaults": "Reset to defaults",
-
 	"layout_sidebar_dashboard": "Dashboard",
 	"layout_sidebar_pinned": "Pinned",
 	"layout_sidebar_recent": "Recent",
@@ -102,20 +99,17 @@
 	"layout_sidebar_tool_plugins": "Plugins",
 	"layout_sidebar_tool_compare_games": "Compare Games",
 	"layout_sidebar_tool_simulator": "Combo Simulator",
-	"layout_sidebar_tool_keyboard_mapper": "Keyboard Mapper",
+	"layout_sidebar_tool_keyboard_mapper": "Mapper",
 	"layout_sidebar_tool_documentation": "Documentation",
-
 	"layout_statusbar_no_game": "No game selected",
 	"layout_statusbar_lsp_running": "GPC LSP",
 	"layout_statusbar_lsp_starting": "LSP Starting...",
 	"layout_statusbar_lsp_error": "LSP Error",
 	"layout_statusbar_notifications": "Notifications",
-
 	"layout_titlebar_minimize": "Minimize",
 	"layout_titlebar_maximize": "Maximize",
 	"layout_titlebar_restore": "Restore",
 	"layout_titlebar_close": "Close",
-
 	"layout_bottompanel_problems": "Problems",
 	"layout_bottompanel_search": "Search",
 	"layout_bottompanel_references": "References",
@@ -126,23 +120,19 @@
 	"layout_bottompanel_clear_logs": "Clear logs",
 	"layout_bottompanel_clear_terminal": "Clear terminal",
 	"layout_bottompanel_close": "Close panel (Ctrl+J)",
-
 	"layout_notifications_title": "Notifications",
 	"layout_notifications_clear_all": "Clear all",
 	"layout_notifications_empty": "No notifications yet",
 	"layout_notifications_just_now": "just now",
 	"layout_notifications_minutes_ago": "{count}m ago",
 	"layout_notifications_hours_ago": "{count}h ago",
-
 	"layout_cmdpalette_placeholder": "Type a command...",
 	"layout_cmdpalette_no_matches": "No matching commands",
-
 	"layout_setup_title": "Set Up Workspace",
 	"layout_setup_description": "A workspace directory is needed to store your game scripts. Choose a custom location or use the default.",
 	"layout_setup_use_default": "Use Default Directory",
 	"layout_setup_choose_custom": "Choose Custom Directory",
 	"layout_close_sidebar": "Close sidebar",
-
 	"editor_select_file": "Select a file to edit",
 	"editor_subtab_visual": "Visual",
 	"editor_subtab_code": "Code",
@@ -151,7 +141,6 @@
 	"editor_split_close": "Close split view",
 	"editor_split_open": "Split editor",
 	"editor_open_external": "Open in external editor",
-
 	"editor_build_button": "Build Game",
 	"editor_build_succeeded": "Build succeeded",
 	"editor_build_failed": "Build failed",
@@ -169,11 +158,9 @@
 	"editor_build_sending_zen_studio": "Sending...",
 	"editor_build_zen_studio_success": "Script served — Zen Studio should open in your browser",
 	"editor_build_zen_studio_error": "Failed to serve script: {error}",
-
 	"editor_filetree_new_file": "New File",
 	"editor_filetree_import_template": "Import Template",
 	"editor_filetree_delete_file": "Delete file",
-
 	"editor_overview_metadata": "Game Metadata",
 	"editor_overview_name": "Name",
 	"editor_overview_game_type": "Game Type",
@@ -192,12 +179,10 @@
 	"editor_overview_add_tag_placeholder": "Add tag...",
 	"editor_overview_save_as_template": "Save as Template",
 	"editor_overview_export_zip": "Export as Zip",
-
 	"modal_new_file_title": "New File",
 	"modal_new_file_filename_label": "Filename",
 	"modal_new_file_filename_placeholder": "e.g., custom.gpc",
 	"modal_new_file_hint": ".gpc extension will be added automatically if not provided",
-
 	"modal_save_template_title": "Save as Project Template",
 	"modal_save_template_name_label": "Template Name",
 	"modal_save_template_name_placeholder": "My Template",
@@ -205,7 +190,6 @@
 	"modal_save_template_description_placeholder": "What this template is for...",
 	"modal_save_template_workspace_label": "Save to Workspace",
 	"modal_save_template_save": "Save Template",
-
 	"modal_template_import_title": "Import Template",
 	"modal_template_import_loading": "Loading templates...",
 	"modal_template_import_description": "Select a template file to import into your game. Common files provide helper functions, while Drawing files contain OLED display utilities.",
@@ -214,9 +198,7 @@
 	"modal_template_import_no_templates": "No templates found",
 	"modal_template_import_back_to_list": "Back to list",
 	"modal_template_import_button": "Import Template",
-
 	"modal_new_from_template_title": "New from Template",
-
 	"dashboard_subtitle": "Desktop IDE for Cronus Zen game scripts",
 	"dashboard_new_game": "New Game",
 	"dashboard_flow_editor": "Flow Editor",
@@ -228,7 +210,6 @@
 	"dashboard_search_placeholder": "Search games...",
 	"dashboard_no_matches": "No games matching \"{query}\"",
 	"dashboard_delete_game": "Delete game",
-
 	"wizard_title": "New Game",
 	"wizard_back_to_dashboard": "Back to dashboard",
 	"wizard_step_game_info": "Game Info",
@@ -256,14 +237,12 @@
 	"wizard_output": "Output: {path}",
 	"wizard_continue": "Continue",
 	"wizard_create_game": "Create Game",
-
 	"page_tab_overview": "Overview",
 	"page_tab_files": "Files",
 	"page_tab_flow": "Flow",
 	"page_tab_build": "Build",
 	"page_tab_history": "History",
 	"page_tab_git": "Git",
-
 	"cmd_save_file": "Save File",
 	"cmd_build_game": "Build Game",
 	"cmd_toggle_bottom": "Toggle Bottom Panel",
@@ -285,7 +264,6 @@
 	"cmd_category_search": "Search",
 	"cmd_category_navigate": "Navigate",
 	"cmd_category_lsp": "LSP",
-
 	"toast_snapshot_created": "Snapshot created",
 	"toast_config_restored": "Config restored from snapshot",
 	"toast_snapshot_deleted": "Snapshot deleted",
@@ -300,7 +278,6 @@
 	"toast_failed_import_template": "Failed to import template: {error}",
 	"toast_failed_read_template": "Failed to read template: {error}",
 	"toast_failed_save_tags": "Failed to save tags: {error}",
-
 	"confirm_rollback_title": "Rollback Config",
 	"confirm_rollback_message": "Restore this snapshot? Your current config will be auto-saved first.",
 	"confirm_rollback_button": "Rollback",
@@ -311,7 +288,6 @@
 	"confirm_file_changed_title": "File Changed",
 	"confirm_file_changed_message": "\"{name}\" was modified externally. Reload and discard local changes?",
 	"confirm_file_changed_button": "Reload",
-
 	"keybinding_save_file": "Save File",
 	"keybinding_build_game": "Build Game",
 	"keybinding_toggle_bottom_panel": "Toggle Bottom Panel",
@@ -321,7 +297,6 @@
 	"keybinding_category_build": "Build",
 	"keybinding_category_ui": "UI",
 	"keybinding_category_search": "Search",
-
 	"sprite_title": "Sprite Sheet Import",
 	"sprite_subtitle": "Import sprite sheets into collections",
 	"sprite_load_image": "Load Image",
@@ -342,7 +317,6 @@
 	"sprite_select_image": "Please select an image file",
 	"sprite_select_workspace": "Select a workspace to save sprites",
 	"sprite_no_workspaces": "No workspaces configured",
-
 	"sprite_editor_title": "Sprite Editor",
 	"sprite_editor_pen": "Pen",
 	"sprite_editor_eraser": "Eraser",
@@ -352,7 +326,6 @@
 	"sprite_editor_clear": "Clear",
 	"sprite_editor_invert": "Invert",
 	"sprite_editor_done": "Done",
-
 	"sprite_stamp_title": "Stamp Sprite",
 	"sprite_stamp_select": "Select a sprite to stamp",
 	"sprite_stamp_no_collections": "No sprite collections found",

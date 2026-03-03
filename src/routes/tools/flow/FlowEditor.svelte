@@ -106,12 +106,13 @@
 	});
 	let showChunkSave = $state(false);
 	let showChunkLibrary = $state(true);
+	let chunkRefreshKey = $state(0);
 	let showEmulator = $state(false);
 	let showProfiles = $state(false);
 	let availableModules = $state<ModuleSummary[]>([]);
 	let building = $state(false);
 
-	let lastLoadedGamePath = $state<string | null>(null);
+	let lastLoadedGamePath = $state<string | null>(flowStore.gamePath);
 
 	async function loadFlowForGame(gamePath: string, gameName: string) {
 		if (gamePath === lastLoadedGamePath) return;
@@ -233,9 +234,25 @@
 				}
 			}
 
-			// Check for weapondata dependency
+			// Auto-add weapondata dependency
 			if (moduleDef.needs_weapondata && !existingModules.some((n) => n.moduleData!.moduleId === 'weapondata')) {
-				addToast(`${moduleDef.display_name} works best with Weapon Data — consider adding it`, 'info');
+				try {
+					const wdDef = await getModule('weapondata', workspacePaths);
+					const wdX = x - 260;
+					const wdY = y;
+					const wdModuleNode = createModuleNode(wdDef, { x: wdX, y: wdY });
+					const wdCreated = addNode('module', { x: wdX, y: wdY });
+					if (wdCreated) {
+						updateNode(wdCreated.id, {
+							label: wdModuleNode.label,
+							moduleData: wdModuleNode.moduleData,
+							variables: wdModuleNode.variables,
+						});
+					}
+					addToast(`Auto-added Weapon Data (required by ${moduleDef.display_name})`, 'info');
+				} catch {
+					addToast(`${moduleDef.display_name} requires Weapon Data but it could not be loaded`, 'warning');
+				}
 			}
 
 			const created = addNode('module', { x, y });
@@ -378,10 +395,12 @@
 	}
 
 	function handleInsertChunk(chunk: FlowChunk) {
+		// Snapshot to unwrap Svelte 5 $state proxy — structuredClone fails on proxied objects
+		const plain = $state.snapshot(chunk) as FlowChunk;
 		const nodeCount = flowStore.graph?.nodes.length ?? 0;
 		const x = -flowStore.canvas.panX + 300 + (nodeCount % 4) * 260;
 		const y = -flowStore.canvas.panY + 200 + Math.floor(nodeCount / 4) * 140;
-		const template = chunk.nodeTemplate;
+		const template = plain.nodeTemplate;
 		const node = createFlowNode(
 			(template.type as FlowNodeType) || 'custom',
 			template.label || chunk.name,
@@ -487,6 +506,8 @@
 				onInsertChunk={handleInsertChunk}
 				{availableModules}
 				onAddModule={handleAddModule}
+				gameType={gameStore.selectedGame?.game_type}
+				refreshKey={chunkRefreshKey}
 			/>
 		{/if}
 
@@ -552,6 +573,8 @@
 						{selectedEdge}
 						selectedSubNode={selectedSubNode}
 						allModuleNodes={flowStore.graph?.nodes.filter((n) => n.type === 'module' && n.moduleData) ?? []}
+						sharedVariables={flowStore.project?.sharedVariables ?? []}
+						gameplayModuleNodes={flowStore.project?.flows.find((f) => f.flowType === 'gameplay')?.nodes.filter((n) => n.type === 'module' && n.moduleData) ?? []}
 						onUpdateNode={updateNode}
 						onUpdateEdge={updateEdge}
 						onSetInitial={setInitialState}
@@ -591,7 +614,7 @@
 	{/if}
 </div>
 
-<ChunkSaveModal open={showChunkSave} node={selectedNode} onclose={() => (showChunkSave = false)} />
+<ChunkSaveModal open={showChunkSave} node={selectedNode} onclose={() => (showChunkSave = false)} onsaved={() => chunkRefreshKey++} />
 
 {#if flowStore.graph}
 	<FlowEmulator graph={flowStore.graph} open={showEmulator} onclose={() => (showEmulator = false)} />

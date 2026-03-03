@@ -8,14 +8,30 @@ status_var = "PlinkDashStatus"
 trigger = "// Plink dash on forward press (double-tap forward automated)\nif (PlinkDashStatus && event_press(PLINKDASH_FORWARD_BTN)) {\n    combo_run(PlinkDash);\n}"
 combo = "combo PlinkDash {\n    // Forward dash: tap forward, release, tap forward\n    set_val(PS5_LX, 100);\n    wait(jitter(PlinkDashTap));\n    set_val(PS5_LX, 0);\n    wait(jitter(PlinkDashGap));\n    set_val(PS5_LX, 100);\n    wait(jitter(PlinkDashTap));\n    set_val(PS5_LX, 0);\n    wait(jitter(50));\n}"
 
+[[plinkdash.options]]
+name = "Status"
+var = "PlinkDashStatus"
+type = "toggle"
+default = 0
+
+[[plinkdash.options]]
+name = "Tap"
+var = "PlinkDashTap"
+type = "value"
+min = 10
+max = 100
+default = 30
+
+[[plinkdash.options]]
+name = "Gap"
+var = "PlinkDashGap"
+type = "value"
+min = 10
+max = 100
+default = 20
+
 [[plinkdash.params]]
 key = "forward_btn"
 prompt = "Forward button"
 type = "button"
 default = "PS5_RIGHT"
-
-options = [
-    { name = "Status", var = "PlinkDashStatus", type = "toggle", default = 0 },
-    { name = "Tap", var = "PlinkDashTap", type = "value", min = 10, max = 100, default = 30 },
-    { name = "Gap", var = "PlinkDashGap", type = "value", min = 10, max = 100, default = 20 },
-]

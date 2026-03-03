@@ -3,7 +3,7 @@
 
 // NOTE: Menu, Menu_Page, rect_y are now defined in Modules/core.gpc (modular system)
 
-#include "oled.gpc"
+import oled;
 
 // ===================== HELPERS =====================
 

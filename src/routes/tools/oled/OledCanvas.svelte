@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { OLED_WIDTH, OLED_HEIGHT, type DrawTool, type BrushShape, type TextState } from './types';
 	import { getPixel, setPixel, clonePixels } from './pixels';
-	import { applyBrush, drawBresenhamLine, drawRect, drawEllipse, floodFill, drawText } from './drawing';
+	import { applyBrush, drawBresenhamLine, drawRect, drawEllipse, floodFill, drawText, shiftPixels } from './drawing';
 	import { getFont } from './fonts';
 	import { getPixel as getSpritePixel, bytesPerRow } from '$lib/utils/sprite-pixels';
 
@@ -118,7 +118,7 @@
 		if (tool === 'text' && textState.originX >= 0 && textState.text) {
 			const font = getFont(textState.fontSize);
 			const previewBuf = clonePixels(displayPixels);
-			drawText(previewBuf, textState.text, textState.originX, textState.originY, font, true);
+			drawText(previewBuf, textState.text, textState.originX, textState.originY, font, true, textState.align);
 			// Re-render with text overlay in preview color
 			for (let y = 0; y < OLED_HEIGHT; y++) {
 				for (let x = 0; x < OLED_WIDTH; x++) {
@@ -151,7 +151,7 @@
 		}
 
 		// Draw brush preview on hover
-		if (!stampData && hoverX >= 0 && hoverY >= 0 && !isDrawing && tool !== 'text') {
+		if (!stampData && hoverX >= 0 && hoverY >= 0 && !isDrawing && tool !== 'text' && tool !== 'move') {
 			drawBrushPreview(hoverX, hoverY);
 		}
 
@@ -296,7 +296,10 @@
 
 		onBeforeDraw();
 
-		if (tool === 'pen' || tool === 'eraser') {
+		if (tool === 'move') {
+			// Move tool: just start tracking, actual shift happens on mouse move
+			return;
+		} else if (tool === 'pen' || tool === 'eraser') {
 			const value = tool === 'eraser' ? false : drawValue;
 			const updated = clonePixels(pixels);
 			applyBrush(updated, px, py, brush, value);
@@ -319,7 +322,15 @@
 			return;
 		}
 
-		if (tool === 'pen' || tool === 'eraser') {
+		if (tool === 'move') {
+			const dx = px - lastPixelX;
+			const dy = py - lastPixelY;
+			if (dx === 0 && dy === 0) return;
+			const shifted = shiftPixels(pixels, dx, dy);
+			lastPixelX = px;
+			lastPixelY = py;
+			onDraw(shifted);
+		} else if (tool === 'pen' || tool === 'eraser') {
 			if (px === lastPixelX && py === lastPixelY) return;
 			const value = tool === 'eraser' ? false : drawValue;
 			const updated = clonePixels(pixels);
@@ -375,7 +386,7 @@
 	function handleMouseLeave() {
 		hoverX = -1;
 		hoverY = -1;
-		if (isDrawing && (tool === 'pen' || tool === 'eraser')) {
+		if (isDrawing && (tool === 'pen' || tool === 'eraser' || tool === 'move')) {
 			isDrawing = false;
 			previewPixels = null;
 		}
@@ -411,7 +422,7 @@
 	<canvas
 		bind:this={canvas}
 		class="block"
-		style:cursor={stampData ? 'crosshair' : tool === 'fill' || tool === 'text' ? 'crosshair' : 'default'}
+		style:cursor={stampData ? 'crosshair' : tool === 'move' ? (isDrawing ? 'grabbing' : 'grab') : tool === 'fill' || tool === 'text' ? 'crosshair' : 'default'}
 		onmousedown={handleMouseDown}
 		onmousemove={handleMouseMove}
 		onmouseup={handleMouseUp}

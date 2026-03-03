@@ -129,7 +129,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-zinc-950">
-	<ToolHeader title="Documentation" />
+	<ToolHeader title="Documentation" subtitle="GPC language reference and API documentation" />
 
 	<div class="flex flex-1 overflow-hidden">
 		<div class="flex w-64 flex-col border-r border-zinc-800 bg-zinc-900">

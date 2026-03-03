@@ -21,6 +21,7 @@
 
 	let steps = $state<SimStep[]>([]);
 	let currentStep = $state(-1);
+	let currentLoop = $state(0);
 	let playing = $state(false);
 	let playTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 	let loopCount = $state(1);
@@ -115,12 +116,9 @@
 			parseError = 'No executable statements found';
 			return;
 		}
-		// Repeat for loop count
-		steps = [];
-		for (let i = 0; i < loopCount; i++) {
-			steps.push(...parsed.map(s => ({ ...s, values: new Map(s.values) })));
-		}
+		steps = parsed;
 		currentStep = -1;
+		currentLoop = 0;
 		activeValues = new Map();
 	}
 
@@ -128,12 +126,20 @@
 		if (currentStep < steps.length - 1) {
 			currentStep++;
 			activeValues = new Map(steps[currentStep].values);
+		} else if (currentLoop < loopCount - 1) {
+			currentLoop++;
+			currentStep = 0;
+			activeValues = new Map(steps[0].values);
 		}
 	}
 
 	function stepBack() {
 		if (currentStep > 0) {
 			currentStep--;
+			activeValues = new Map(steps[currentStep].values);
+		} else if (currentStep === 0 && currentLoop > 0) {
+			currentLoop--;
+			currentStep = steps.length - 1;
 			activeValues = new Map(steps[currentStep].values);
 		} else if (currentStep === 0) {
 			currentStep = -1;
@@ -144,17 +150,26 @@
 	function play() {
 		if (steps.length === 0) simulate();
 		if (steps.length === 0) return;
+		if (currentStep >= steps.length - 1 && currentLoop >= loopCount - 1) {
+			currentStep = -1;
+			currentLoop = 0;
+			activeValues = new Map();
+		}
 		playing = true;
 		playNext();
 	}
 
 	function playNext() {
 		if (!playing) return;
-		if (currentStep >= steps.length - 1) {
+		if (currentStep < steps.length - 1) {
+			currentStep++;
+		} else if (currentLoop < loopCount - 1) {
+			currentLoop++;
+			currentStep = 0;
+		} else {
 			playing = false;
 			return;
 		}
-		currentStep++;
 		activeValues = new Map(steps[currentStep].values);
 		const waitMs = steps[currentStep].waitMs || 20;
 		playTimer = setTimeout(playNext, waitMs / speed);
@@ -171,6 +186,7 @@
 	function reset() {
 		stop();
 		currentStep = -1;
+		currentLoop = 0;
 		activeValues = new Map();
 	}
 
@@ -192,17 +208,22 @@
 			.sort((a, b) => a[0].localeCompare(b[0]))
 	);
 
-	let totalDuration = $derived(
+	let singleLoopDuration = $derived(
 		steps.reduce((sum, s) => sum + s.waitMs, 0)
 	);
 
+	let totalDuration = $derived(singleLoopDuration * loopCount);
+
 	let currentTime = $derived(
-		currentStep >= 0 ? steps.slice(0, currentStep + 1).reduce((sum, s) => sum + s.waitMs, 0) : 0
+		currentStep >= 0
+			? currentLoop * singleLoopDuration +
+				steps.slice(0, currentStep + 1).reduce((sum, s) => sum + s.waitMs, 0)
+			: 0
 	);
 </script>
 
 <div class="flex h-full flex-col bg-zinc-950 text-zinc-200">
-	<ToolHeader title="Combo Simulator" />
+	<ToolHeader title="Combo Simulator" subtitle="Test and debug GPC combos in real-time" />
 
 	<!-- Main Content -->
 	<div class="flex flex-1 overflow-hidden">
@@ -217,7 +238,7 @@
 							<input
 								type="number"
 								min="1"
-								max="100"
+								max="9999"
 								bind:value={loopCount}
 								class="w-14 rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-xs text-zinc-200"
 							/>
@@ -284,7 +305,7 @@
 				<button
 					class="rounded border border-zinc-700 px-2.5 py-1 text-xs text-zinc-400 hover:bg-zinc-800 disabled:opacity-50"
 					onclick={stepForward}
-					disabled={currentStep >= steps.length - 1 || playing}
+					disabled={(currentStep >= steps.length - 1 && currentLoop >= loopCount - 1) || playing}
 					title="Step forward"
 				>
 					&#9654;&#9654;
@@ -298,6 +319,9 @@
 				</button>
 				<div class="ml-auto flex items-center gap-3 text-xs text-zinc-500">
 					<span>Step {currentStep + 1}/{steps.length}</span>
+					{#if loopCount > 1}
+						<span>Loop {currentLoop + 1}/{loopCount}</span>
+					{/if}
 					<span>{currentTime}ms / {totalDuration}ms</span>
 				</div>
 			</div>
@@ -316,7 +340,7 @@
 					</div>
 				{:else}
 					<!-- Current state -->
-					<div class="mb-4">
+					<div class="mb-4 min-h-24">
 						<h3 class="mb-2 text-xs font-semibold text-zinc-400 uppercase">Active Outputs</h3>
 						{#if activeButtons.length === 0}
 							<div class="rounded border border-zinc-800 bg-zinc-900 px-3 py-4 text-center text-xs text-zinc-600">
@@ -347,6 +371,19 @@
 					<!-- Step Timeline -->
 					<div>
 						<h3 class="mb-2 text-xs font-semibold text-zinc-400 uppercase">Execution Timeline</h3>
+						{#if loopCount > 1}
+							<div class="mb-2 flex items-center gap-2 rounded bg-zinc-900 px-2 py-1 text-xs">
+								<span class="text-zinc-500">Loop</span>
+								<span class="font-medium text-emerald-400">{currentLoop + 1}</span>
+								<span class="text-zinc-600">of {loopCount}</span>
+								<div class="ml-auto h-1 w-20 rounded-full bg-zinc-800">
+									<div
+										class="h-1 rounded-full bg-emerald-500 transition-all"
+										style="width: {((currentLoop + 1) / loopCount) * 100}%"
+									></div>
+								</div>
+							</div>
+						{/if}
 						<div class="space-y-0.5">
 							{#each steps as step, i}
 								<button

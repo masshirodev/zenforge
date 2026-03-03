@@ -7,7 +7,21 @@ state_display = "BH"
 status_var = "BunnyHopStatus"
 has_quick_toggle = true
 trigger = "if (BunnyHopStatus && get_val(BUNNYHOP_JUMP_KEY)) {\n    combo_run(BunnyHop);\n}"
-combo = "combo BunnyHop {\n    set_val(BUNNYHOP_JUMP_BTN, 100);\n    wait(jitter(50));\n    set_val(BUNNYHOP_JUMP_BTN, 0);\n    wait(jitter(50));\n}"
+combo = "combo BunnyHop {\n    set_val(BUNNYHOP_JUMP_BTN, 100);\n    wait(jitter(BunnyHopInterval));\n    set_val(BUNNYHOP_JUMP_BTN, 0);\n    wait(jitter(BunnyHopInterval));\n}"
+
+[[bunnyhop.options]]
+name = "Status"
+var = "BunnyHopStatus"
+type = "toggle"
+default = 0
+
+[[bunnyhop.options]]
+name = "Interval"
+var = "BunnyHopInterval"
+type = "value"
+min = 20
+max = 200
+default = 50
 
 [[bunnyhop.params]]
 key = "jump_key"
@@ -20,7 +34,3 @@ key = "jump_btn"
 prompt = "Jump button (controller)"
 type = "button"
 default = "PS5_CROSS"
-
-options = [
-    { name = "Status", var = "BunnyHopStatus", type = "toggle", default = 0 },
-]

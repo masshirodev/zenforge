@@ -1,4 +1,10 @@
 import type { FlowGraph, FlowNode, FlowVariable } from '$lib/types/flow';
+import {
+	collectPersistVars,
+	flowVarsToPersistVars,
+	generateBitpackPersistence,
+	type PersistVar,
+} from './codegen';
 
 /**
  * Result of gameplay code generation — kept separate for merging.
@@ -47,6 +53,17 @@ export function generateGameplayGpc(graph: FlowGraph): GameplayCodegenResult {
 	for (const node of moduleNodes) {
 		const md = node.moduleData!;
 		const safeName = sanitizeName(md.moduleId);
+
+		// Weapon data defines + array (weapondata module only)
+		if (md.moduleId === 'weapondata' && md.weaponNames && md.weaponNames.length > 0) {
+			const count = md.weaponNames.length;
+			result.defines.push(`define WEAPON_COUNT = ${count};`);
+			result.defines.push(`define WEAPON_MAX_INDEX = ${count - 1};`);
+			const quoted = md.weaponNames.map((w) => `"${w}"`).join(', ');
+			result.functions.push(`// Weapon names`);
+			result.functions.push(`const string Weapons[] = { ${quoted} };`);
+			result.functions.push('');
+		}
 
 		// Variables: enable + options + extras
 		for (const v of node.variables) {
@@ -136,10 +153,14 @@ export function generateGameplayGpc(graph: FlowGraph): GameplayCodegenResult {
 
 /**
  * Generate a standalone GPC script from gameplay flow only.
+ * Includes bitpack persistence for module options with persist: true.
  */
 export function generateGameplayGpcStandalone(graph: FlowGraph): string {
 	const result = generateGameplayGpc(graph);
 	const lines: string[] = [];
+
+	// Collect persist vars from gameplay modules
+	const persistVars = collectGameplayPersistVars(graph);
 
 	lines.push(`// ====================================================`);
 	lines.push(`// Gameplay Flow: ${graph.name}`);
@@ -150,6 +171,9 @@ export function generateGameplayGpcStandalone(graph: FlowGraph): string {
 	// Imports for common helpers
 	lines.push(`import common/helper;`);
 	lines.push(`import common/oled;`);
+	if (persistVars.length > 0) {
+		lines.push(`import common/bitpack;`);
+	}
 	lines.push('');
 
 	if (result.defines.length > 0) {
@@ -175,13 +199,23 @@ export function generateGameplayGpcStandalone(graph: FlowGraph): string {
 		lines.push(...result.combos);
 	}
 
-	if (result.initCode.length > 0) {
-		lines.push(`// ===== INIT =====`);
-		lines.push(`init {`);
-		lines.push(...result.initCode);
-		lines.push(`}`);
+	// Persistence (bitpack-based, SPVAR_5+)
+	if (persistVars.length > 0) {
+		lines.push(`// ===== PERSISTENCE =====`);
+		lines.push(generateBitpackPersistence(persistVars));
 		lines.push('');
 	}
+
+	lines.push(`// ===== INIT =====`);
+	lines.push(`init {`);
+	if (result.initCode.length > 0) {
+		lines.push(...result.initCode);
+	}
+	if (persistVars.length > 0) {
+		lines.push(`    Flow_Load();`);
+	}
+	lines.push(`}`);
+	lines.push('');
 
 	lines.push(`// ===== MAIN =====`);
 	lines.push(`main {`);
@@ -191,6 +225,40 @@ export function generateGameplayGpcStandalone(graph: FlowGraph): string {
 	lines.push(`}`);
 
 	return lines.join('\n');
+}
+
+/**
+ * Collect persist vars from a gameplay flow graph.
+ * Includes module options + Weapons_RecoilValues when applicable.
+ */
+function collectGameplayPersistVars(graph: FlowGraph): PersistVar[] {
+	const persistFlowVars = collectPersistVars(graph);
+	const result = flowVarsToPersistVars(persistFlowVars, 0);
+	const seen = new Set(result.map((v) => v.name));
+
+	// Weapons_RecoilValues array persistence when weapondata + recoil module present
+	const hasWeapondata = graph.nodes.some((n) => n.moduleData?.moduleId === 'weapondata');
+	const hasRecoilModule = graph.nodes.some(
+		(n) =>
+			n.moduleData?.needsWeapondata &&
+			n.moduleData.moduleId !== 'weapondata' &&
+			n.moduleData.moduleId !== 'antirecoil_timeline'
+	);
+
+	if (hasWeapondata && hasRecoilModule && !seen.has('Weapons_RecoilValues')) {
+		result.push({
+			name: 'Weapons_RecoilValues',
+			min: -100,
+			max: 100,
+			defaultValue: 0,
+			arrayLoop: {
+				countExpr: 'WEAPON_COUNT * 2',
+				indexVar: '_bp_loop_i',
+			},
+		});
+	}
+
+	return result;
 }
 
 // ==================== Helpers ====================
@@ -207,7 +275,8 @@ function generateVarDecl(v: FlowVariable): string {
 		const size = v.arraySize ?? 32;
 		return `int8 ${v.name}[${size}];`;
 	}
-	return `${v.type} ${v.name} = ${v.defaultValue};`;
+	const profile = v.perProfile ? ' [profile]' : '';
+	return `${v.type}${profile} ${v.name} = ${v.defaultValue};`;
 }
 
 /**

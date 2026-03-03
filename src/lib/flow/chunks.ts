@@ -180,17 +180,7 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 		nodeTemplate: {
 			type: 'screensaver',
 			label: 'Screensaver',
-			variables: [
-				{ name: 'ScreenSaverX', type: 'int', defaultValue: 0, persist: false },
-				{ name: 'ScreenSaverY', type: 'int', defaultValue: 0, persist: false },
-			],
-			gpcCode: [
-				'cls_oled(OLED_BLACK);',
-				'// Moving dot screensaver',
-				'ScreenSaverX = (ScreenSaverX + 3) % 128;',
-				'ScreenSaverY = (ScreenSaverY + 2) % 64;',
-				'pixel_oled(ScreenSaverX, ScreenSaverY, 1);',
-			].join('\n'),
+			gpcCode: '// Screensaver — add pixel art sub-nodes for visuals',
 			onEnter: '',
 			onExit: '',
 			comboCode: '',
@@ -215,12 +205,7 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 		nodeTemplate: {
 			type: 'intro',
 			label: 'Splash',
-			gpcCode: [
-				'cls_oled(OLED_BLACK);',
-				'// Border',
-				'rect_oled(0, 0, 128, 64, 0, OLED_WHITE);',
-				'rect_oled(2, 2, 124, 60, 0, OLED_WHITE);',
-			].join('\n'),
+			gpcCode: '// Splash — add pixel art sub-nodes for visuals',
 			onEnter: '',
 			onExit: '',
 			comboCode: '',
@@ -258,10 +243,7 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 		nodeTemplate: {
 			type: 'home',
 			label: 'Home',
-			gpcCode: [
-				'cls_oled(OLED_BLACK);',
-				'line_oled(0, 9, 127, 9, 1, OLED_WHITE);',
-			].join('\n'),
+			gpcCode: '// Home status — add pixel art sub-nodes for visuals',
 			onEnter: '',
 			onExit: '',
 			comboCode: '',
@@ -391,39 +373,7 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 		createdAt: 0,
 		updatedAt: 0,
 	},
-	{
-		id: 'builtin-screensaver-flow',
-		name: 'Screensaver Flow',
-		description: 'An active state with idle timeout transitioning to a screensaver, wakes on button press.',
-		category: 'screensaver',
-		tags: ['screensaver', 'idle', 'animation', 'timeout'],
-		nodeTemplate: {
-			type: 'home',
-			label: 'Active',
-			gpcCode: '// Normal active state — screensaver activates after idle timeout',
-			onEnter: 'cls_oled(OLED_BLACK);',
-			onExit: '',
-			comboCode: '',
-		},
-		edgeTemplates: [
-			{
-				label: 'Idle Timeout',
-				condition: { type: 'timeout', timeoutMs: 30000 },
-				direction: 'outgoing',
-			},
-		],
-		parameters: [
-			{
-				key: 'timeoutMs',
-				label: 'Idle Timeout (ms)',
-				type: 'number',
-				defaultValue: '30000',
-				description: 'How long idle before screensaver activates',
-			},
-		],
-		createdAt: 0,
-		updatedAt: 0,
-	},
+
 	{
 		id: 'builtin-quick-toggle',
 		name: 'Quick Toggle',

@@ -127,7 +127,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-zinc-950 text-zinc-100">
-	<ToolHeader title="Snippet Library">
+	<ToolHeader title="Snippet Library" subtitle="Save and reuse common GPC code snippets">
 		<span class="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
 			{allSnippets.length} snippet{allSnippets.length !== 1 ? 's' : ''}
 		</span>

@@ -5,6 +5,7 @@
 	import { getSettings, togglePinnedGame, isGamePinned, removeRecentFile, clearRecentFiles } from '$lib/stores/settings.svelte';
 	import { openTab } from '$lib/stores/editor.svelte';
 	import * as m from '$lib/paraglide/messages.js';
+	import AppLogo from './AppLogo.svelte';
 
 	interface Props {
 		onSelectGame: (game: GameSummary) => void;
@@ -219,11 +220,7 @@
 >
 	<div class="flex items-center justify-between border-b border-zinc-700 px-4 py-3">
 		<div class="flex items-center gap-2">
-			<svg class="h-5 w-5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
-				<path
-					d="M10 1a6 6 0 00-3.815 10.631C7.237 12.5 8 13.443 8 14.456v.644a.5.5 0 00.5.5h3a.5.5 0 00.5-.5v-.644c0-1.013.762-1.957 1.815-2.825A6 6 0 0010 1zM8.5 17a.5.5 0 00.5.5h2a.5.5 0 00.5-.5v-.5h-3v.5zM8.5 19a.5.5 0 00.5.5h2a.5.5 0 000-1H9a.5.5 0 00-.5.5z"
-				/>
-			</svg>
+			<AppLogo />
 			<span class="text-sm font-semibold text-zinc-100">Zen Forge</span>
 		</div>
 		{#if onCollapse}

@@ -8,13 +8,16 @@ export interface OledScene {
 	pixels: Uint8Array; // 1024 bytes = 128x64 bits, row-major, MSB first
 }
 
-export type DrawTool = 'pen' | 'eraser' | 'line' | 'rect' | 'ellipse' | 'fill' | 'text';
+export type DrawTool = 'pen' | 'eraser' | 'line' | 'rect' | 'ellipse' | 'fill' | 'text' | 'move';
 
 export type FontSize = '3x5' | '5x7' | '8x8';
+
+export type TextAlign = 'left' | 'center' | 'right';
 
 export interface TextState {
 	text: string;
 	fontSize: FontSize;
+	align: TextAlign;
 	originX: number; // -1 = not placed
 	originY: number;
 }

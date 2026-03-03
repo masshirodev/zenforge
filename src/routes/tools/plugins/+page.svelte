@@ -110,7 +110,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-zinc-950 text-zinc-200">
-	<ToolHeader title="Plugins">
+	<ToolHeader title="Plugins" subtitle="Extend Zen Forge with community plugins">
 		<div class="ml-auto flex items-center gap-2">
 			<button
 				class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"

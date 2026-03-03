@@ -2,6 +2,7 @@
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
 	import * as m from '$lib/paraglide/messages.js';
+	import AppLogo from './AppLogo.svelte';
 
 	let { gameName = '' }: { gameName?: string } = $props();
 
@@ -29,11 +30,7 @@
 >
 	<!-- Left: Logo + App Name -->
 	<div class="flex items-center gap-2 pl-3" data-tauri-drag-region>
-		<svg class="h-4 w-4 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
-			<path
-				d="M10 1a6 6 0 00-3.815 10.631C7.237 12.5 8 13.443 8 14.456v.644a.5.5 0 00.5.5h3a.5.5 0 00.5-.5v-.644c0-1.013.762-1.957 1.815-2.825A6 6 0 0010 1zM8.5 17a.5.5 0 00.5.5h2a.5.5 0 00.5-.5v-.5h-3v.5zM8.5 19a.5.5 0 00.5.5h2a.5.5 0 000-1H9a.5.5 0 00-.5.5z"
-			/>
-		</svg>
+		<AppLogo class="h-4 w-4" />
 		<span class="text-xs font-semibold text-zinc-300" data-tauri-drag-region>Zen Forge</span>
 	</div>
 

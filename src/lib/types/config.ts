@@ -96,4 +96,5 @@ export interface GameMeta {
 	username?: string;
 	generation_mode: string;
 	tags?: string[];
+	header_comments?: string;
 }

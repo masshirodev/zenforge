@@ -1619,29 +1619,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpc-ide"
-version = "0.1.0"
-dependencies = [
- "ersa_lsp_core",
- "log",
- "notify",
- "regex",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-log",
- "tauri-plugin-opener",
- "tempfile",
- "tokio",
- "toml 0.8.2",
- "toml_edit 0.22.27",
- "walkdir",
- "zip",
-]
-
-[[package]]
 name = "gtk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5838,6 +5815,29 @@ dependencies = [
  "serde",
  "winnow 0.7.14",
  "zvariant",
+]
+
+[[package]]
+name = "zen-forge"
+version = "0.1.0"
+dependencies = [
+ "ersa_lsp_core",
+ "log",
+ "notify",
+ "regex",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-log",
+ "tauri-plugin-opener",
+ "tempfile",
+ "tokio",
+ "toml 0.8.2",
+ "toml_edit 0.22.27",
+ "walkdir",
+ "zip",
 ]
 
 [[package]]

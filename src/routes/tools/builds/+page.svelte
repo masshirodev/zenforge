@@ -254,7 +254,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-zinc-950 text-zinc-200">
-	<ToolHeader title="Built Games">
+	<ToolHeader title="Built Games" subtitle="Browse compiled game files and manage the build queue">
 		<div class="ml-4 flex rounded border border-zinc-800">
 			<button
 				class="px-3 py-1 text-xs font-medium transition-colors {viewTab === 'files' ? 'bg-zinc-800 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}"

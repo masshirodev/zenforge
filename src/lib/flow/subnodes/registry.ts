@@ -3,6 +3,7 @@ import { headerDef } from './defs/header';
 import { menuItemDef } from './defs/menu-item';
 import { toggleItemDef } from './defs/toggle-item';
 import { valueItemDef } from './defs/value-item';
+import { arrayItemDef } from './defs/array-item';
 import { scrollBarDef } from './defs/scroll-bar';
 import { textLineDef } from './defs/text-line';
 import { barDef } from './defs/bar';
@@ -17,6 +18,7 @@ const ALL_SUBNODE_DEFS: SubNodeDef[] = [
 	menuItemDef,
 	toggleItemDef,
 	valueItemDef,
+	arrayItemDef,
 	scrollBarDef,
 	textLineDef,
 	barDef,

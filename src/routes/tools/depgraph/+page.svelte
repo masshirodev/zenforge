@@ -115,7 +115,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-zinc-950 text-zinc-100">
-	<ToolHeader title="Module Dependency Graph">
+	<ToolHeader title="Module Dependency Graph" subtitle="Visualize dependencies between game modules">
 		<div class="ml-auto flex items-center gap-2">
 			<label class="text-xs text-zinc-400" for="filter-type">Filter:</label>
 			<select

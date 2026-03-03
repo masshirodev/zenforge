@@ -176,7 +176,7 @@
 
 <div class="flex h-full flex-col bg-zinc-950">
 	<!-- Header -->
-	<ToolHeader title="Keyboard / Controller Mapper">
+	<ToolHeader title="Keyboard / Controller Mapper" subtitle="Map keyboard keys and controller buttons">
 		<span class="text-sm text-zinc-500">({mappings.length} mappings)</span>
 		<div class="ml-auto flex items-center gap-2">
 			{#if mappings.length > 0}

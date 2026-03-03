@@ -17,6 +17,30 @@
 
 	let isFlowGame = $derived(game.generation_mode === 'flow');
 
+	// --- Header comments editing ---
+	let headerComments = $state('');
+	let commentsSaving = $state(false);
+
+	$effect(() => {
+		headerComments = meta?.header_comments ?? '';
+	});
+
+	async function saveHeaderComments() {
+		if (!meta) return;
+		commentsSaving = true;
+		try {
+			await saveGameMeta(game.path, {
+				...meta,
+				header_comments: headerComments || undefined
+			});
+			addToast('Header comments saved', 'success', 2000);
+		} catch (e) {
+			addToast(`Failed to save comments: ${e}`, 'error');
+		} finally {
+			commentsSaving = false;
+		}
+	}
+
 	// --- Tags editing ---
 	let newTag = $state('');
 	let tags = $state<string[]>([]);
@@ -181,6 +205,33 @@
 		</form>
 	</div>
 </div>
+
+<!-- Header Comments -->
+{#if isFlowGame && meta}
+	<div class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+		<div class="mb-3 flex items-center justify-between">
+			<h2 class="text-sm font-semibold tracking-wider text-zinc-400 uppercase">Build Header Comments</h2>
+			<button
+				class="rounded px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50 {commentsSaving
+					? 'bg-zinc-700'
+					: 'bg-emerald-600 hover:bg-emerald-500'}"
+				onclick={saveHeaderComments}
+				disabled={commentsSaving}
+			>
+				{commentsSaving ? 'Saving...' : 'Save'}
+			</button>
+		</div>
+		<textarea
+			class="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
+			rows="4"
+			placeholder="Custom comments to include at the top of built files (e.g. author, version notes, credits)"
+			bind:value={headerComments}
+		></textarea>
+		<p class="mt-1.5 text-xs text-zinc-600">
+			Each line will be prefixed with <code class="text-zinc-500">//</code> in the output file.
+		</p>
+	</div>
+{/if}
 
 <!-- Actions -->
 <div class="mt-4 flex items-center gap-3">

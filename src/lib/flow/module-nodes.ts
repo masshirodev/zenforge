@@ -17,11 +17,6 @@ export function createModuleNode(
 	moduleDef: ModuleDefinition,
 	position: { x: number; y: number }
 ): FlowNode {
-	const safeName = moduleDef.id
-		.replace(/[^a-zA-Z0-9_]/g, '_')
-		.replace(/^[0-9]/, '_$&');
-	const enableVar = `${capitalize(safeName)}_Enabled`;
-
 	const options: ModuleNodeOption[] = moduleDef.options.map((opt) => ({
 		name: opt.name,
 		variable: opt.var,
@@ -30,6 +25,15 @@ export function createModuleNode(
 		min: opt.min,
 		max: opt.max,
 	}));
+
+	// Use the module's first Status toggle variable as the enable variable
+	// so the menu flow toggle directly controls the gameplay guard.
+	// Fall back to auto-generated name if no Status toggle exists.
+	const statusOption = options.find((o) => o.type === 'toggle' && o.name === 'Status');
+	const safeName = moduleDef.id
+		.replace(/[^a-zA-Z0-9_]/g, '_')
+		.replace(/^[0-9]/, '_$&');
+	const enableVar = statusOption?.variable ?? `${capitalize(safeName)}_Enabled`;
 
 	// Parse the combo field into separate code sections
 	const parsed = parseComboField(moduleDef.combo ?? '');
@@ -52,24 +56,52 @@ export function createModuleNode(
 	const node = createFlowNode('module', moduleDef.display_name, position);
 	node.moduleData = moduleData;
 
-	// Create enable variable on the node
-	node.variables = [
-		{
-			name: enableVar,
+	// Create node variables — enable variable + option variables (deduplicated)
+	const vars: FlowNode['variables'] = [];
+	const seenVars = new Set<string>();
+
+	// Enable variable first (auto-persist toggles as 0/1)
+	vars.push({
+		name: enableVar,
+		type: 'int',
+		defaultValue: statusOption ? statusOption.defaultValue : 0,
+		persist: true,
+		min: 0,
+		max: 1,
+	});
+	seenVars.add(enableVar);
+
+	// Add option variables (skip if already added as enable var)
+	// Module options are auto-persisted so user settings survive reboot
+	for (const opt of options) {
+		if (!seenVars.has(opt.variable)) {
+			vars.push({
+				name: opt.variable,
+				type: 'int' as const,
+				defaultValue: opt.defaultValue,
+				persist: true,
+				min: opt.min,
+				max: opt.max,
+			});
+			seenVars.add(opt.variable);
+		}
+	}
+	// Weapondata: add CurrentWeapon as a node variable so it's
+	// available for binding to array-item sub-nodes
+	if (moduleDef.id === 'weapondata' && !seenVars.has('CurrentWeapon')) {
+		vars.push({
+			name: 'CurrentWeapon',
 			type: 'int',
 			defaultValue: 0,
-			persist: false,
-		},
-		// Add option variables
-		...options.map((opt) => ({
-			name: opt.variable,
-			type: 'int' as const,
-			defaultValue: opt.defaultValue,
-			persist: false,
-			min: opt.min,
-			max: opt.max,
-		})),
-	];
+			persist: true,
+			perProfile: true,
+			min: 0,
+			max: 255,
+		});
+		seenVars.add('CurrentWeapon');
+	}
+
+	node.variables = vars;
 
 	return node;
 }

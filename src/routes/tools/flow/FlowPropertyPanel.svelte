@@ -15,6 +15,7 @@
 	import SubNodeParamEditor from './SubNodeParamEditor.svelte';
 	import MiniMonaco from '$lib/components/editor/MiniMonaco.svelte';
 	import ButtonSelect from '$lib/components/inputs/ButtonSelect.svelte';
+	import VariableSelect from '$lib/components/inputs/VariableSelect.svelte';
 	import { getSettings } from '$lib/stores/settings.svelte';
 	import { listSpriteCollections, readSpriteCollection } from '$lib/tauri/commands';
 	import { base64ToSprite, bytesPerRow } from '$lib/utils/sprite-pixels';
@@ -28,6 +29,8 @@
 		selectedEdge: FlowEdge | null;
 		selectedSubNode: SubNode | null;
 		allModuleNodes?: FlowNode[];
+		sharedVariables?: FlowVariable[];
+		gameplayModuleNodes?: FlowNode[];
 		onUpdateNode: (nodeId: string, updates: Partial<FlowNode>) => void;
 		onUpdateEdge: (edgeId: string, updates: Partial<FlowEdge>) => void;
 		onSetInitial: (nodeId: string) => void;
@@ -47,6 +50,8 @@
 		selectedEdge,
 		selectedSubNode,
 		allModuleNodes = [],
+		sharedVariables = [],
+		gameplayModuleNodes = [],
 		onUpdateNode,
 		onUpdateEdge,
 		onSetInitial,
@@ -308,6 +313,30 @@
 		onUpdateNode(selectedNode.id, { moduleData: md });
 	}
 
+	// Weapon names for weapondata module
+	let newWeaponName = $state('');
+
+	function addWeaponName() {
+		const name = newWeaponName.trim();
+		if (!name || !selectedNode?.moduleData) return;
+		const md = { ...selectedNode.moduleData };
+		const existing = md.weaponNames ?? [];
+		if (existing.includes(name)) {
+			newWeaponName = '';
+			return;
+		}
+		md.weaponNames = [...existing, name];
+		onUpdateNode(selectedNode.id, { moduleData: md });
+		newWeaponName = '';
+	}
+
+	function removeWeaponName(name: string) {
+		if (!selectedNode?.moduleData) return;
+		const md = { ...selectedNode.moduleData };
+		md.weaponNames = (md.weaponNames ?? []).filter((w) => w !== name);
+		onUpdateNode(selectedNode.id, { moduleData: md });
+	}
+
 	// Local editing state for sub-node
 	let editSubLabel = $state('');
 	let lastSyncedSubNodeId = '';
@@ -388,7 +417,7 @@
 	let subNodeDef = $derived(selectedSubNode ? getSubNodeDef(selectedSubNode.type) : null);
 	let isTextSubNode = $derived(
 		selectedSubNode
-			? ['header', 'text-line', 'menu-item', 'toggle-item', 'value-item'].includes(selectedSubNode.type)
+			? ['header', 'text-line', 'menu-item', 'toggle-item', 'value-item', 'array-item'].includes(selectedSubNode.type)
 			: false
 	);
 	let sortedSubNodes = $derived(
@@ -396,8 +425,40 @@
 	);
 	let subNodeCategories = $derived(listSubNodeCategories());
 	let availableVariables = $derived.by(() => {
-		if (!selectedNode) return [];
-		return selectedNode.variables.map((v) => v.name);
+		if (!selectedNode) return [] as { name: string; label: string }[];
+		const seen = new Set<string>();
+		const result: { name: string; label: string }[] = [];
+
+		// Local node variables
+		for (const v of selectedNode.variables) {
+			if (!seen.has(v.name)) {
+				result.push({ name: v.name, label: v.name });
+				seen.add(v.name);
+			}
+		}
+
+		// Gameplay module variables (tagged G)
+		for (const modNode of gameplayModuleNodes) {
+			const md = modNode.moduleData;
+			if (!md) continue;
+			const tag = md.moduleName;
+			for (const v of modNode.variables) {
+				if (!seen.has(v.name)) {
+					result.push({ name: v.name, label: `G:${tag} - ${v.name}` });
+					seen.add(v.name);
+				}
+			}
+		}
+
+		// Shared variables (tagged S)
+		for (const v of sharedVariables) {
+			if (!seen.has(v.name)) {
+				result.push({ name: v.name, label: `S - ${v.name}` });
+				seen.add(v.name);
+			}
+		}
+
+		return result;
 	});
 
 	function commitNodeLabel() {
@@ -658,22 +719,17 @@
 			{/if}
 
 			<!-- Variable binding -->
-			{#if selectedSubNode.interactive || ['bar', 'indicator', 'toggle-item', 'value-item'].includes(selectedSubNode.type)}
+			{#if selectedSubNode.interactive || ['bar', 'indicator', 'toggle-item', 'value-item', 'array-item'].includes(selectedSubNode.type)}
 				<div class="mb-3">
 					<label class="mb-1 block text-xs text-zinc-400">Bound Variable</label>
-					<select
-						class="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none"
+					<VariableSelect
 						value={selectedSubNode.boundVariable || ''}
-						onchange={(e) => {
-							const val = (e.target as HTMLSelectElement).value;
+						options={availableVariables}
+						placeholder="Search or type variable..."
+						onchange={(val) => {
 							onUpdateSubNode(selectedNode!.id, selectedSubNode!.id, { boundVariable: val || undefined });
 						}}
-					>
-						<option value="">None</option>
-						{#each availableVariables as varName}
-							<option value={varName}>{varName}</option>
-						{/each}
-					</select>
+					/>
 				</div>
 			{/if}
 
@@ -782,6 +838,50 @@
 				/>
 				<p class="mt-0.5 text-[10px] text-zinc-600">Toggle variable shared with Menu Flow</p>
 			</div>
+
+			<!-- Weapon Names (weapondata module only) -->
+			{#if selectedNode.moduleData?.moduleId === 'weapondata'}
+				<div class="mb-3">
+					<label class="mb-1 block text-xs text-zinc-400" for="weapon-name-input">Weapon Names</label>
+					<div class="flex flex-wrap items-center gap-1.5">
+						{#each selectedNode.moduleData.weaponNames ?? [] as weapon}
+							<span class="group flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">
+								{weapon}
+								<button
+									class="text-zinc-500 opacity-0 group-hover:opacity-100 hover:text-red-400"
+									title="Remove {weapon}"
+									onclick={() => removeWeaponName(weapon)}
+								>
+									<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+										<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+									</svg>
+								</button>
+							</span>
+						{/each}
+						<form
+							class="flex items-center gap-1"
+							onsubmit={(e) => { e.preventDefault(); addWeaponName(); }}
+						>
+							<input
+								id="weapon-name-input"
+								class="w-24 rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
+								placeholder="Add weapon..."
+								bind:value={newWeaponName}
+							/>
+							<button
+								type="submit"
+								class="rounded bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300 hover:bg-zinc-600"
+								disabled={!newWeaponName.trim()}
+							>
+								+
+							</button>
+						</form>
+					</div>
+					<p class="mt-1 text-[10px] text-zinc-600">
+						{(selectedNode.moduleData.weaponNames ?? []).length} weapons — generates Weapons[] array, WEAPON_COUNT, WEAPON_MAX_INDEX
+					</p>
+				</div>
+			{/if}
 
 			<!-- Code Tabs -->
 			<div class="mb-2">

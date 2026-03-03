@@ -2,9 +2,9 @@
 // ===================== SCROLL =====================
 // Scroll bar visualization with dynamic page support
 
-#include "../drawings/scroll_outer.gpc"
-#include "../drawings/scroll_current.gpc"
-#include "../drawings/selector.gpc"
+import ../drawings/scroll_outer;
+import ../drawings/scroll_current;
+import ../drawings/selector;
 
 // Draw scroll bar with current page indicator
 function draw_scroll(page) {

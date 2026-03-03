@@ -242,8 +242,12 @@
 	let isGitRepo = $state(false);
 	let gameTabs = $derived((() => {
 		const isFlow = store.selectedGame?.generation_mode === 'flow';
-		const tabs = ['overview', 'files'];
-		if (isFlow) tabs.push('flow');
+		const tabs = ['overview'];
+		if (isFlow) {
+			tabs.push('flow', 'files');
+		} else {
+			tabs.push('files');
+		}
 		tabs.push('build', 'history');
 		if (isGitRepo) tabs.push('git');
 		return tabs;

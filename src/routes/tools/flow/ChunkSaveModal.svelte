@@ -8,9 +8,10 @@
 		open: boolean;
 		node: FlowNode | null;
 		onclose: () => void;
+		onsaved?: () => void;
 	}
 
-	let { open, node, onclose }: Props = $props();
+	let { open, node, onclose, onsaved }: Props = $props();
 
 	let settingsStore = getSettings();
 	let settings = $derived($settingsStore);
@@ -37,6 +38,9 @@
 			return;
 		}
 
+		// Snapshot to unwrap Svelte 5 $state proxy — structuredClone fails on proxied objects
+		const plain = $state.snapshot(node) as FlowNode;
+
 		saving = true;
 		try {
 			const chunk: FlowChunk = {
@@ -49,15 +53,18 @@
 					.map((t) => t.trim())
 					.filter(Boolean),
 				nodeTemplate: {
-					type: node.type,
-					label: node.label,
-					gpcCode: node.gpcCode,
-					oledScene: node.oledScene,
-					oledWidgets: node.oledWidgets,
-					comboCode: node.comboCode,
-					variables: node.variables,
-					onEnter: node.onEnter,
-					onExit: node.onExit,
+					type: plain.type,
+					label: plain.label,
+					gpcCode: plain.gpcCode,
+					oledScene: plain.oledScene,
+					oledWidgets: plain.oledWidgets,
+					comboCode: plain.comboCode,
+					variables: plain.variables,
+					onEnter: plain.onEnter,
+					onExit: plain.onExit,
+					subNodes: plain.subNodes,
+					stackOffsetX: plain.stackOffsetX,
+					stackOffsetY: plain.stackOffsetY,
 				},
 				edgeTemplates: [],
 				parameters: [],
@@ -68,6 +75,7 @@
 			await saveChunk(settings.workspaces[0], chunk);
 			addToast(`Chunk "${name}" saved`, 'success');
 			onclose();
+			onsaved?.();
 		} catch (e) {
 			addToast(`Failed to save chunk: ${e}`, 'error');
 		} finally {

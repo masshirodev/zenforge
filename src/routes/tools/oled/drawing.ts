@@ -214,17 +214,31 @@ export function shiftPixels(
 	return result;
 }
 
+export function measureTextWidth(text: string, font: BitmapFont): number {
+	if (text.length === 0) return 0;
+	const charPitch = font.width + font.spacing;
+	return text.length * charPitch - font.spacing;
+}
+
 export function drawText(
 	pixels: Uint8Array,
 	text: string,
 	originX: number,
 	originY: number,
 	font: BitmapFont,
-	value: boolean
+	value: boolean,
+	align: 'left' | 'center' | 'right' = 'left'
 ): void {
 	const charPitch = font.width + font.spacing;
+	const textWidth = measureTextWidth(text, font);
+	let startX = originX;
+	if (align === 'center') {
+		startX = originX - Math.floor(textWidth / 2);
+	} else if (align === 'right') {
+		startX = originX - textWidth;
+	}
 	for (let i = 0; i < text.length; i++) {
-		const charX = originX + i * charPitch;
+		const charX = startX + i * charPitch;
 		// Skip characters entirely off-screen to the right
 		if (charX >= OLED_WIDTH) break;
 		// Skip characters entirely off-screen to the left

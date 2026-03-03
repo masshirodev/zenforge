@@ -1,7 +1,6 @@
 import type { ComboProject, ComboStep, ModuleExportConfig } from './types';
 import {
 	CONSOLE_AXES,
-	CONSOLE_BUTTONS,
 	translateButton,
 	type ConsoleType
 } from '$lib/utils/console-buttons';
@@ -103,9 +102,9 @@ export function exportModuleTOML(
 }
 
 /**
- * Export combo steps as a GPC data() array.
- * Format: each step encodes [button_count, ...buttons(id, value), stick_count, ...sticks(axis, x, y), wait_hi, wait_lo]
- * Terminated with 0xFF sentinel.
+ * Export combo steps as a GPC data() block.
+ * Format per step: button_count, button_names..., wait_centiseconds
+ * Terminated with EOC per combo, EOD to end the data block.
  */
 export function exportComboData(
 	project: ComboProject,
@@ -113,55 +112,44 @@ export function exportComboData(
 ): string {
 	const target = targetConsole ?? project.consoleType;
 	const name = sanitizeName(project.name);
-	const bytes: number[] = [];
+	const axes = CONSOLE_AXES[target];
+
+	const stepLines: string[] = [];
 
 	for (const step of project.steps) {
 		const translated = translateStepButtons(step, project.consoleType, target);
 
-		// Button count
-		bytes.push(translated.buttons.length);
+		// Collect all inputs for this step (buttons + stick axes as buttons)
+		const inputs: string[] = [];
 		for (const b of translated.buttons) {
-			bytes.push(buttonNameToId(b.button));
-			bytes.push(Math.min(Math.max(b.value, 0), 255));
+			inputs.push(b.button);
 		}
-
-		// Stick count
-		bytes.push(translated.sticks.length);
 		for (const s of translated.sticks) {
-			bytes.push(s.axis === 'left' ? 0 : 1);
-			// x, y as signed bytes mapped to 0-255 (offset 128)
-			bytes.push(Math.min(Math.max(s.x + 128, 0), 255));
-			bytes.push(Math.min(Math.max(s.y + 128, 0), 255));
+			const ax = s.axis === 'left' ? axes.lx : axes.rx;
+			const ay = s.axis === 'left' ? axes.ly : axes.ry;
+			if (s.x !== 0) inputs.push(ax);
+			if (s.y !== 0) inputs.push(ay);
 		}
 
-		// Wait: high byte, low byte (supports up to 65535ms)
-		const wait = Math.min(Math.max(step.waitMs, 0), 65535);
-		bytes.push((wait >> 8) & 0xff);
-		bytes.push(wait & 0xff);
+		// Wait in centiseconds (ms / 10), clamped to 0-254
+		const waitCs = Math.min(Math.max(Math.round(step.waitMs / 10), 0), 254);
+
+		const comment = step.label ? `  // ${step.label}` : '';
+		const parts = inputs.length > 0 ? `${inputs.length},${inputs.join(',')},${waitCs},` : `0,${waitCs},`;
+		stepLines.push(parts + comment);
 	}
 
-	// Terminator
-	bytes.push(0xff);
-
-	const dataLine = bytes.map((b) => b.toString()).join(', ');
-	const stepCount = project.steps.length;
-
 	const lines = [
-		`// ${name} — ${stepCount} step(s), ${bytes.length} bytes`,
-		`// Format: [btn_count, ...(id, val), stick_count, ...(axis, x, y), wait_hi, wait_lo] per step, 0xFF terminator`,
-		`const uint8 ${name}Data[] = { ${dataLine} };`
+		`// ${name} — ${project.steps.length} step(s)`,
+		'// Format: button_count, buttons..., wait (x10ms) per step',
+		'data(',
+		`${name},`,
+		...stepLines,
+		'EOC,',
+		'EOD );'
 	];
 
 	return lines.join('\n');
-}
-
-/** Map button name to its GPC identifier value */
-function buttonNameToId(name: string): number {
-	for (const buttons of Object.values(CONSOLE_BUTTONS)) {
-		const btn = buttons.find((b) => b.name === name);
-		if (btn) return btn.value;
-	}
-	return 0;
 }
 
 function sanitizeName(name: string): string {

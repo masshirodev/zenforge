@@ -2,14 +2,142 @@ import type { FlowGraph, FlowNode, FlowEdge, FlowVariable, SubNode, SubNodeCodeg
 import { getSubNodeDef } from '$lib/flow/subnodes/registry';
 import { computeSubNodePixelY, getSortedSubNodes } from '$lib/flow/layout';
 
+// ==================== Persistence Types & Helpers ====================
+
+/** A variable ready for bitpack-based SPVAR persistence */
+export interface PersistVar {
+	name: string;
+	min: number;
+	max: number;
+	defaultValue: number;
+	perProfile?: boolean;
+	profileCount?: number;
+	/** For array persistence using a loop */
+	arrayLoop?: {
+		countExpr: string;
+		indexVar: string;
+	};
+}
+
+/** Convert FlowVariables (persist=true) to PersistVars with resolved min/max ranges */
+export function flowVarsToPersistVars(vars: FlowVariable[], profileCount: number): PersistVar[] {
+	const result: PersistVar[] = [];
+	for (const v of vars) {
+		if (v.type === 'string') continue;
+
+		let min = v.min;
+		let max = v.max;
+
+		if (min === undefined || max === undefined) {
+			// Infer range from type when not explicitly set
+			switch (v.type) {
+				case 'int8':
+					min = min ?? -128;
+					max = max ?? 127;
+					break;
+				case 'int16':
+					min = min ?? -32768;
+					max = max ?? 32767;
+					break;
+				default:
+					min = min ?? -32768;
+					max = max ?? 32767;
+					break;
+			}
+		}
+
+		result.push({
+			name: v.name,
+			min,
+			max,
+			defaultValue: typeof v.defaultValue === 'number' ? v.defaultValue : 0,
+			perProfile: v.perProfile,
+			profileCount: v.perProfile ? profileCount : undefined,
+		});
+	}
+	return result;
+}
+
+/**
+ * Generate bitpack-based Flow_Save / Flow_Load functions.
+ * Uses SPVAR_5+ for auto-generated data, leaving SPVAR_1-4 for user use.
+ * SPVAR_0 is the data-exists marker.
+ */
+export function generateBitpackPersistence(vars: PersistVar[]): string {
+	if (vars.length === 0) return '';
+
+	const hasArrayLoop = vars.some((v) => v.arrayLoop);
+	const lines: string[] = [];
+
+	lines.push(`define SPVAR_BITPACK_START = SPVAR_5;`);
+	if (hasArrayLoop) {
+		lines.push(`int _bp_loop_i;`);
+	}
+	lines.push(``);
+
+	// Flow_Save
+	lines.push(`function Flow_Save() {`);
+	lines.push(`    spvar_current_slot = SPVAR_BITPACK_START;`);
+	lines.push(`    spvar_current_bit = 0;`);
+	lines.push(`    spvar_current_value = 0;`);
+	lines.push(`    spvar_total_bits = 0;`);
+	for (const v of vars) {
+		if (v.arrayLoop) {
+			lines.push(`    for(_bp_loop_i = 0; _bp_loop_i < ${v.arrayLoop.countExpr}; _bp_loop_i++) {`);
+			lines.push(`        save_spvar(${v.name}[_bp_loop_i], ${v.min}, ${v.max});`);
+			lines.push(`    }`);
+		} else if (v.perProfile && v.profileCount && v.profileCount > 1) {
+			for (let p = 0; p < v.profileCount; p++) {
+				lines.push(`    save_spvar(${v.name}[${p}], ${v.min}, ${v.max});`);
+			}
+		} else {
+			lines.push(`    save_spvar(${v.name}, ${v.min}, ${v.max});`);
+		}
+	}
+	lines.push(`    flush_spvar();`);
+	lines.push(`    set_pvar(SPVAR_0, 1);`);
+	lines.push(`}`);
+	lines.push(``);
+
+	// Flow_Load
+	lines.push(`function Flow_Load() {`);
+	lines.push(`    if(get_pvar(SPVAR_0) != 1) return;`);
+	lines.push(`    spvar_current_slot = SPVAR_BITPACK_START;`);
+	lines.push(`    spvar_current_bit = 0;`);
+	lines.push(`    spvar_current_value = 0;`);
+	lines.push(`    spvar_total_bits = 0;`);
+	for (const v of vars) {
+		if (v.arrayLoop) {
+			lines.push(`    for(_bp_loop_i = 0; _bp_loop_i < ${v.arrayLoop.countExpr}; _bp_loop_i++) {`);
+			lines.push(`        ${v.name}[_bp_loop_i] = read_spvar(${v.min}, ${v.max}, ${v.defaultValue});`);
+			lines.push(`    }`);
+		} else if (v.perProfile && v.profileCount && v.profileCount > 1) {
+			for (let p = 0; p < v.profileCount; p++) {
+				lines.push(`    ${v.name}[${p}] = read_spvar(${v.min}, ${v.max}, ${v.defaultValue});`);
+			}
+		} else {
+			lines.push(`    ${v.name} = read_spvar(${v.min}, ${v.max}, ${v.defaultValue});`);
+		}
+	}
+	lines.push(`}`);
+
+	return lines.join('\n');
+}
+
 /**
  * Generate a complete GPC script from a FlowGraph.
  * Produces a self-contained state machine with OLED rendering.
  *
  * @param profileCount - When > 1, per-profile variables are declared as arrays
  *                       and indexed with `[Flow_CurrentProfile]`.
+ * @param options.skipPersistence - When true, omit persistence functions and
+ *        Flow_Load() call (used by merged codegen which generates combined persistence).
  */
-export function generateFlowGpc(graph: FlowGraph, profileCount: number = 0): string {
+export function generateFlowGpc(
+	graph: FlowGraph,
+	profileCount: number = 0,
+	options?: { skipPersistence?: boolean }
+): string {
 	const lines: string[] = [];
 	const nodes = graph.nodes;
 	const edges = graph.edges;
@@ -39,6 +167,11 @@ export function generateFlowGpc(graph: FlowGraph, profileCount: number = 0): str
 	// Imports for common helpers
 	lines.push(`import common/helper;`);
 	lines.push(`import common/oled;`);
+	const hasPersistence =
+		graph.settings.persistenceEnabled && !options?.skipPersistence && collectPersistVars(graph).length > 0;
+	if (hasPersistence) {
+		lines.push(`import common/bitpack;`);
+	}
 	lines.push(``);
 
 	// State defines
@@ -344,12 +477,13 @@ export function generateFlowGpc(graph: FlowGraph, profileCount: number = 0): str
 		}
 	}
 
-	// Persistence functions
-	if (graph.settings.persistenceEnabled) {
+	// Persistence functions (bitpack-based, SPVAR_5+)
+	if (hasPersistence) {
 		const persistVars = collectPersistVars(graph);
-		if (persistVars.length > 0) {
+		const pvars = flowVarsToPersistVars(persistVars, profileCount);
+		if (pvars.length > 0) {
 			lines.push(`// ===== PERSISTENCE =====`);
-			lines.push(generatePersistence(persistVars));
+			lines.push(generateBitpackPersistence(pvars));
 			lines.push(``);
 		}
 	}
@@ -360,7 +494,7 @@ export function generateFlowGpc(graph: FlowGraph, profileCount: number = 0): str
 	lines.push(`// ===== INIT =====`);
 	lines.push(`init {`);
 	lines.push(`    FlowCurrentState = FLOW_STATE_${initialName};`);
-	if (graph.settings.persistenceEnabled && collectPersistVars(graph).length > 0) {
+	if (hasPersistence) {
 		lines.push(`    Flow_Load();`);
 	}
 	lines.push(`}`);
@@ -493,7 +627,7 @@ function generateOledDrawFunction(node: FlowNode): string {
 	return lines.join('\n');
 }
 
-function collectPersistVars(graph: FlowGraph): FlowVariable[] {
+export function collectPersistVars(graph: FlowGraph): FlowVariable[] {
 	const vars: FlowVariable[] = [];
 	const seen = new Set<string>();
 
@@ -515,22 +649,3 @@ function collectPersistVars(graph: FlowGraph): FlowVariable[] {
 	return vars;
 }
 
-function generatePersistence(vars: FlowVariable[]): string {
-	const lines: string[] = [];
-
-	lines.push(`function Flow_Save() {`);
-	vars.forEach((v, i) => {
-		lines.push(`    set_pvar(SPVAR_${i + 1}, ${v.name});`);
-	});
-	lines.push(`    set_pvar(SPVAR_0, 1); // Data exists marker`);
-	lines.push(`}`);
-	lines.push(``);
-	lines.push(`function Flow_Load() {`);
-	lines.push(`    if(get_pvar(SPVAR_0) == 0) return;`);
-	vars.forEach((v, i) => {
-		lines.push(`    ${v.name} = get_pvar(SPVAR_${i + 1});`);
-	});
-	lines.push(`}`);
-
-	return lines.join('\n');
-}

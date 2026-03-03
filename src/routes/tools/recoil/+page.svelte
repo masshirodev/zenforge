@@ -323,7 +323,7 @@
 
 <div class="flex h-full flex-col bg-zinc-950">
     <!-- Header -->
-    <ToolHeader title="Spray Pattern Tool">
+    <ToolHeader title="Spray Pattern Tool" subtitle="Design and test anti-recoil spray patterns">
         {#if transferWeaponName}
             <span class="rounded bg-blue-900/50 px-2 py-1 text-xs text-blue-300">
                 {transferWeaponName}

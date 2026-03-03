@@ -2,19 +2,21 @@
 	import type { FlowChunk, FlowNodeType, FlowType } from '$lib/types/flow';
 	import { createFlowNode } from '$lib/types/flow';
 	import { BUILTIN_CHUNKS, getChunksByCategory } from '$lib/flow/chunks';
-	import { listChunks } from '$lib/tauri/commands';
+	import { listChunks, deleteChunk } from '$lib/tauri/commands';
 	import { getSettings } from '$lib/stores/settings.svelte';
-	import { onMount } from 'svelte';
 	import type { ModuleSummary } from '$lib/types/module';
+	import ConfirmDialog from '$lib/components/modals/ConfirmDialog.svelte';
 
 	interface Props {
 		flowType: FlowType;
 		onInsertChunk: (chunk: FlowChunk) => void;
 		availableModules: ModuleSummary[];
 		onAddModule: (moduleId: string) => void;
+		gameType?: string;
+		refreshKey?: number;
 	}
 
-	let { flowType, onInsertChunk, availableModules, onAddModule }: Props = $props();
+	let { flowType, onInsertChunk, availableModules, onAddModule, gameType, refreshKey = 0 }: Props = $props();
 
 	let settingsStore = getSettings();
 	let settings = $derived($settingsStore);
@@ -22,12 +24,18 @@
 	let search = $state('');
 	let expandedCategories = $state<Set<string>>(new Set(['intro', 'menu', 'home', 'screensaver', 'utility', 'code', 'modules']));
 
-	onMount(async () => {
+	async function reloadChunks() {
 		try {
 			userChunks = await listChunks(settings.workspaces);
 		} catch {
 			// No chunks yet
 		}
+	}
+
+	// Load chunks on mount and reload when refreshKey changes
+	$effect(() => {
+		void refreshKey;
+		reloadChunks();
 	});
 
 	let allChunks = $derived([...BUILTIN_CHUNKS, ...userChunks]);
@@ -51,16 +59,29 @@
 		);
 	});
 
-	// Filter modules by search too
+	// Filter and sort modules: user-defined first, then same game type, then rest
 	let filteredModules = $derived.by(() => {
-		if (!search.trim()) return availableModules;
-		const q = search.toLowerCase();
-		return availableModules.filter(
-			(m) =>
-				m.display_name.toLowerCase().includes(q) ||
-				m.id.toLowerCase().includes(q) ||
-				(m.description ?? '').toLowerCase().includes(q)
-		);
+		let mods = availableModules;
+		if (search.trim()) {
+			const q = search.toLowerCase();
+			mods = mods.filter(
+				(m) =>
+					m.display_name.toLowerCase().includes(q) ||
+					m.id.toLowerCase().includes(q) ||
+					(m.description ?? '').toLowerCase().includes(q)
+			);
+		}
+		return [...mods].sort((a, b) => {
+			const aUser = a.is_user_module ? 0 : 1;
+			const bUser = b.is_user_module ? 0 : 1;
+			if (aUser !== bUser) return aUser - bUser;
+			if (gameType) {
+				const aMatch = a.module_type === gameType ? 0 : 1;
+				const bMatch = b.module_type === gameType ? 0 : 1;
+				if (aMatch !== bMatch) return aMatch - bMatch;
+			}
+			return a.display_name.localeCompare(b.display_name);
+		});
 	});
 
 	let grouped = $derived(getChunksByCategory(filteredChunks));
@@ -74,6 +95,24 @@
 		if (next.has(cat)) next.delete(cat);
 		else next.add(cat);
 		expandedCategories = next;
+	}
+
+	let chunkToDelete = $state<FlowChunk | null>(null);
+
+	function promptDeleteChunk(e: MouseEvent, chunk: FlowChunk) {
+		e.stopPropagation();
+		chunkToDelete = chunk;
+	}
+
+	async function confirmDeleteChunk() {
+		if (!chunkToDelete) return;
+		try {
+			await deleteChunk(settings.workspaces, chunkToDelete.id);
+			await reloadChunks();
+		} catch {
+			// Ignore
+		}
+		chunkToDelete = null;
 	}
 
 	const categoryLabels: Record<string, string> = {
@@ -131,8 +170,11 @@
 								title={mod.description || mod.display_name}
 							>
 								<span class="flex items-center gap-1.5 text-xs text-zinc-300">
-									<span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-500"></span>
+									<span class="h-1.5 w-1.5 flex-shrink-0 rounded-full {mod.is_user_module ? 'bg-emerald-500' : 'bg-red-500'}"></span>
 									{mod.display_name}
+									{#if mod.module_type}
+										<span class="ml-auto flex-shrink-0 rounded px-1 text-[9px] uppercase {mod.module_type === gameType ? 'bg-emerald-900/50 text-emerald-400' : 'bg-zinc-800 text-zinc-500'}">{mod.module_type}</span>
+									{/if}
 								</span>
 								{#if mod.description}
 									<span class="line-clamp-1 pl-3 text-[10px] text-zinc-600">{mod.description}</span>
@@ -171,17 +213,30 @@
 				{#if expandedCategories.has(cat)}
 					<div class="ml-2 space-y-0.5">
 						{#each grouped[cat] as chunk}
-							<button
-								class="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-zinc-800"
-								onclick={() => onInsertChunk(chunk)}
-								title={chunk.description}
-							>
-								<span class="text-xs text-zinc-300">{chunk.name}</span>
-								<span class="line-clamp-1 text-[10px] text-zinc-600">{chunk.description}</span>
-								{#if chunk.creator}
-									<span class="text-[10px] text-zinc-700">By {chunk.creator}</span>
+							<div class="group flex items-center rounded hover:bg-zinc-800">
+								<button
+									class="flex flex-1 flex-col px-2 py-1.5 text-left"
+									onclick={() => onInsertChunk(chunk)}
+									title={chunk.description}
+								>
+									<span class="text-xs text-zinc-300">{chunk.name}</span>
+									<span class="line-clamp-1 text-[10px] text-zinc-600">{chunk.description}</span>
+									{#if chunk.creator}
+										<span class="text-[10px] text-zinc-700">By {chunk.creator}</span>
+									{/if}
+								</button>
+								{#if !chunk.id.startsWith('builtin-')}
+									<button
+										class="mr-1 flex-shrink-0 rounded p-0.5 text-zinc-600 opacity-0 hover:bg-zinc-700 hover:text-red-400 group-hover:opacity-100"
+										onclick={(e) => promptDeleteChunk(e, chunk)}
+										title="Delete chunk"
+									>
+										<svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+											<path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd" />
+										</svg>
+									</button>
 								{/if}
-							</button>
+							</div>
 						{/each}
 					</div>
 				{/if}
@@ -195,3 +250,13 @@
 		{/if}
 	</div>
 </div>
+
+<ConfirmDialog
+	open={chunkToDelete !== null}
+	title="Delete Chunk"
+	message={`Delete chunk "${chunkToDelete?.name ?? ''}"? This cannot be undone.`}
+	confirmLabel="Delete"
+	variant="danger"
+	onconfirm={confirmDeleteChunk}
+	oncancel={() => (chunkToDelete = null)}
+/>
