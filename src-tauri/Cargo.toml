@@ -1,6 +1,6 @@
 [package]
 name = "zen-forge"
-version = "0.1.0"
+version = "1.0.0"
 description = "Zen Forge - Desktop IDE for Cronus Zen game scripts"
 authors = ["masshiro"]
 license = "MIT"
