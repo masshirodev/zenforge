@@ -12,6 +12,7 @@
 		startFileServer
 	} from '$lib/tauri/commands';
 	import { generateMergedFlowGpc } from '$lib/flow/codegen-merged';
+	import { mergeRecoilTable, parseWeaponNames } from '$lib/utils/recoil-parser';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import { getSettings } from '$lib/stores/settings.svelte';
 	import MonacoEditor from '$lib/components/editor/MonacoEditor.svelte';
@@ -106,8 +107,18 @@
 						const { code: gpcCode, extraFiles } = generateMergedFlowGpc(flowProject);
 						await writeFile(gamePath + '/main.gpc', gpcCode);
 						for (const [fn, content] of Object.entries(extraFiles)) {
-							try { await readFile(gamePath + '/' + fn); } catch {
-								await writeFile(gamePath + '/' + fn, content);
+							if (fn === 'recoiltable.gpc') {
+								try {
+									const existing = await readFile(gamePath + '/' + fn);
+									const names = parseWeaponNames(gpcCode);
+									await writeFile(gamePath + '/' + fn, mergeRecoilTable(existing, names));
+								} catch {
+									await writeFile(gamePath + '/' + fn, content);
+								}
+							} else {
+								try { await readFile(gamePath + '/' + fn); } catch {
+									await writeFile(gamePath + '/' + fn, content);
+								}
 							}
 						}
 					}

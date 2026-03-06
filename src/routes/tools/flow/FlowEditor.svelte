@@ -63,6 +63,7 @@
 	} from '$lib/stores/flow.svelte';
 	import { saveFlowProject, loadFlowProject, listModules, getModule, readFile, writeFile, buildGame } from '$lib/tauri/commands';
 	import { generateMergedFlowGpc } from '$lib/flow/codegen-merged';
+	import { mergeRecoilTable, parseWeaponNames } from '$lib/utils/recoil-parser';
 	import { createModuleNode } from '$lib/flow/module-nodes';
 	import { getFlowOledTransfer, setFlowOledTransfer, clearFlowOledTransfer } from '$lib/stores/flow-transfer.svelte';
 	import { goto } from '$app/navigation';
@@ -344,9 +345,19 @@
 			// Write main.gpc and any extra files (e.g. recoiltable.gpc)
 			await writeFile(gamePath + '/main.gpc', gpcCode);
 			for (const [fileName, content] of Object.entries(extraFiles)) {
-				// Only write extra files if they don't already exist (preserve user edits)
-				try { await readFile(gamePath + '/' + fileName); } catch {
-					await writeFile(gamePath + '/' + fileName, content);
+				if (fileName === 'recoiltable.gpc') {
+					// Merge with existing file to preserve user-edited recoil values
+					try {
+						const existing = await readFile(gamePath + '/' + fileName);
+						const names = parseWeaponNames(gpcCode);
+						await writeFile(gamePath + '/' + fileName, mergeRecoilTable(existing, names));
+					} catch {
+						await writeFile(gamePath + '/' + fileName, content);
+					}
+				} else {
+					try { await readFile(gamePath + '/' + fileName); } catch {
+						await writeFile(gamePath + '/' + fileName, content);
+					}
 				}
 			}
 

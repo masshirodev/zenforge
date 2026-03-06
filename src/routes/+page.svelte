@@ -83,6 +83,7 @@
 	} from '$lib/utils/recoil-parser';
 	import { parseBuildErrorLink } from '$lib/utils/editor-helpers';
 	import { generateMergedFlowGpc } from '$lib/flow/codegen-merged';
+	import { mergeRecoilTable, parseWeaponNames } from '$lib/utils/recoil-parser';
 	import { parseDiffToLineChanges } from '$lib/utils/diff-parser';
 	import type { GitLineChange } from '$lib/components/editor/MonacoEditor.svelte';
 
@@ -634,8 +635,18 @@
 					const { code: gpcCode, extraFiles } = generateMergedFlowGpc(flowProject);
 					await writeFile(gamePath + '/main.gpc', gpcCode);
 					for (const [fileName, content] of Object.entries(extraFiles)) {
-						try { await readFile(gamePath + '/' + fileName); } catch {
-							await writeFile(gamePath + '/' + fileName, content);
+						if (fileName === 'recoiltable.gpc') {
+							try {
+								const existing = await readFile(gamePath + '/' + fileName);
+								const names = parseWeaponNames(gpcCode);
+								await writeFile(gamePath + '/' + fileName, mergeRecoilTable(existing, names));
+							} catch {
+								await writeFile(gamePath + '/' + fileName, content);
+							}
+						} else {
+							try { await readFile(gamePath + '/' + fileName); } catch {
+								await writeFile(gamePath + '/' + fileName, content);
+							}
 						}
 					}
 				}

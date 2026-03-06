@@ -140,3 +140,54 @@ export function updateWeaponValues(
         return entry;
     });
 }
+
+/**
+ * Merge an existing recoiltable.gpc with an updated weapon names list.
+ * Preserves recoil values for weapons that still exist (matched by index),
+ * adds new weapons with zeroed values, and removes weapons beyond the new list.
+ */
+export function mergeRecoilTable(
+    existingContent: string,
+    newWeaponNames: string[]
+): string {
+    const existingEntries = parseRecoilTable(existingContent);
+    const existingByIndex = new Map(existingEntries.map((e) => [e.index, e]));
+    const count = newWeaponNames.length;
+    const zeros = new Array(20).fill(0);
+
+    const merged: WeaponRecoilEntry[] = newWeaponNames.map((name, i) => {
+        const existing = existingByIndex.get(i);
+        return {
+            index: i,
+            name,
+            type: existing?.type ?? '',
+            values: existing ? [...existing.values] : [...zeros],
+            rawLine: ''
+        };
+    });
+
+    // Rebuild the file content from scratch with merged entries
+    const lines: string[] = [];
+    lines.push(`// Weapon recoil table (10 phases x 2 axes per weapon)`);
+    lines.push(`// Edit values in the Recoil tab or Spray Pattern tool`);
+    lines.push(`const int8 WeaponRecoilTable[][] = {`);
+    lines.push(`//  V0  H0  V1  H1  V2  H2  V3  H3  V4  H4  V5  H5  V6  H6  V7  H7  V8  H8  V9  H9`);
+
+    for (let i = 0; i < merged.length; i++) {
+        const entry = merged[i];
+        const vals = entry.values.map((v) => {
+            const s = String(v);
+            return s.length < 2 ? ' ' + s : s;
+        });
+        const valStr = vals.join(', ');
+        const comma = i < count - 1 ? ',' : ' ';
+        const idxStr = String(entry.index).padStart(4, ' ');
+        const nameStr = entry.name.padEnd(14, ' ');
+        const typeStr = entry.type ? entry.type.padEnd(4, ' ') : '';
+        const comment = `/*${idxStr}  ${nameStr}${typeStr}*/`;
+        lines.push(`    {${valStr}}${comma} ${comment}`);
+    }
+
+    lines.push(`};`);
+    return lines.join('\n');
+}
