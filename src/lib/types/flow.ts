@@ -69,6 +69,8 @@ export interface SubNodeParam {
 	max?: number;
 	options?: { value: unknown; label: string }[];
 	description?: string;
+	/** Show this param only when another config key matches one of the given values */
+	visibleWhen?: { key: string; values: unknown[] };
 }
 
 export interface SubNodeRenderContext {
@@ -187,7 +189,12 @@ export interface ModuleNodeData {
 export interface CustomArrayDef {
 	name: string;
 	countDefine: string;
+	/** '1d' (default) or '2d' for array[][] */
+	dimension?: '1d' | '2d';
+	/** 1D values — used when dimension is '1d' or undefined */
 	values: string[];
+	/** 2D values — each row is a string[]; used when dimension is '2d' */
+	values2d?: string[][];
 }
 
 /** ADT signature for a single weapon used by the ADP weapon detection module.

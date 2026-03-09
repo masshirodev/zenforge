@@ -148,7 +148,15 @@ pub struct ModuleNodeData {
 pub struct CustomArrayDef {
     pub name: String,
     pub count_define: String,
+    /// "1d" (default) or "2d" for array[][]
+    #[serde(default)]
+    pub dimension: Option<String>,
+    /// 1D values — used when dimension is "1d" or absent
+    #[serde(default)]
     pub values: Vec<String>,
+    /// 2D values — each row is a Vec<String>; used when dimension is "2d"
+    #[serde(default)]
+    pub values_2d: Option<Vec<Vec<String>>>,
 }
 
 /// ADT signature for a single weapon used by the ADP weapon detection module.

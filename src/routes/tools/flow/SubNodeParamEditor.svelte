@@ -12,6 +12,8 @@
 </script>
 
 {#each params as param (param.key)}
+	{@const visible = !param.visibleWhen || param.visibleWhen.values.includes(config[param.visibleWhen.key] ?? '')}
+	{#if visible}
 	<div class="mb-2">
 		<label class="mb-0.5 block text-xs text-zinc-400" for="param-{param.key}">
 			{param.label}
@@ -70,4 +72,5 @@
 			</div>
 		{/if}
 	</div>
+	{/if}
 {/each}

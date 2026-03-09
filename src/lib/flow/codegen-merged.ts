@@ -163,10 +163,29 @@ export function generateMergedFlowGpc(project: FlowProject): MergedFlowResult {
 		lines.push(`// ===== CUSTOM ARRAYS =====`);
 		for (const node of arrayBuilderNodes) {
 			for (const arr of node.moduleData!.customArrays!) {
-				if (arr.values.length === 0) continue;
-				lines.push(`define ${arr.countDefine} = ${arr.values.length};`);
-				const quoted = arr.values.map((v) => `"${v}"`).join(', ');
-				lines.push(`const string ${arr.name}[] = { ${quoted} };`);
+				if (arr.dimension === '2d') {
+					const rows = arr.values2d ?? [];
+					if (rows.length === 0) continue;
+					// Flatten 2D into 1D with offset/count tables
+					const flat: string[] = [];
+					const offsets: number[] = [];
+					const rowCounts: number[] = [];
+					for (const row of rows) {
+						offsets.push(flat.length);
+						rowCounts.push(row.length);
+						flat.push(...row);
+					}
+					lines.push(`define ${arr.countDefine} = ${rows.length};`);
+					lines.push(`const int8 ${arr.name}_Offsets[] = { ${offsets.join(', ')} };`);
+					lines.push(`const int8 ${arr.name}_RowCounts[] = { ${rowCounts.join(', ')} };`);
+					const quoted = flat.map((v) => `"${v}"`).join(', ');
+					lines.push(`const string ${arr.name}[] = { ${quoted} };`);
+				} else {
+					if (arr.values.length === 0) continue;
+					lines.push(`define ${arr.countDefine} = ${arr.values.length};`);
+					const quoted = arr.values.map((v) => `"${v}"`).join(', ');
+					lines.push(`const string ${arr.name}[] = { ${quoted} };`);
+				}
 			}
 		}
 		lines.push('');

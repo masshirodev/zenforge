@@ -1218,27 +1218,47 @@
 				<div class="mb-3">
 					<div class="mb-1 flex items-center justify-between">
 						<label class="text-xs text-zinc-400">Arrays</label>
-						<button
-							class="rounded px-1.5 py-0.5 text-xs text-emerald-400 hover:bg-zinc-800"
-							onclick={() => {
-								if (!selectedNode?.moduleData) return;
-								const existing = selectedNode.moduleData.customArrays ?? [];
-								const idx = existing.length + 1;
-								const name = `Array${idx}`;
-								onUpdateNode(selectedNode.id, {
-									moduleData: {
-										...selectedNode.moduleData,
-										customArrays: [...existing, { name, countDefine: `${name.toUpperCase()}_COUNT`, values: ['Item 1'] }]
-									}
-								});
-							}}
-						>
-							+ Add Array
-						</button>
+						<div class="flex gap-1">
+							<button
+								class="rounded px-1.5 py-0.5 text-xs text-emerald-400 hover:bg-zinc-800"
+								onclick={() => {
+									if (!selectedNode?.moduleData) return;
+									const existing = selectedNode.moduleData.customArrays ?? [];
+									const idx = existing.length + 1;
+									const name = `Array${idx}`;
+									onUpdateNode(selectedNode.id, {
+										moduleData: {
+											...selectedNode.moduleData,
+											customArrays: [...existing, { name, countDefine: `${name.toUpperCase()}_COUNT`, values: ['Item 1'] }]
+										}
+									});
+								}}
+							>
+								+ 1D
+							</button>
+							<button
+								class="rounded px-1.5 py-0.5 text-xs text-blue-400 hover:bg-zinc-800"
+								onclick={() => {
+									if (!selectedNode?.moduleData) return;
+									const existing = selectedNode.moduleData.customArrays ?? [];
+									const idx = existing.length + 1;
+									const name = `Array${idx}`;
+									onUpdateNode(selectedNode.id, {
+										moduleData: {
+											...selectedNode.moduleData,
+											customArrays: [...existing, { name, countDefine: `${name.toUpperCase()}_COUNT`, dimension: '2d', values: [], values2d: [['Item 1']] }]
+										}
+									});
+								}}
+							>
+								+ 2D
+							</button>
+						</div>
 					</div>
 					{#if arrays.length > 0}
 						<div class="space-y-2">
 							{#each arrays as arr, ai}
+								{@const is2d = arr.dimension === '2d'}
 								<div class="rounded border border-zinc-700 bg-zinc-800/50 px-2 py-1.5">
 									<div class="mb-1 flex items-center gap-1">
 										<input
@@ -1254,6 +1274,9 @@
 												onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
 											}}
 										/>
+										<span class="rounded bg-zinc-900 px-1 py-0.5 text-[9px] {is2d ? 'text-blue-400' : 'text-zinc-500'}">
+											{is2d ? '[][]' : '[]'}
+										</span>
 										<button
 											class="text-zinc-600 hover:text-red-400"
 											onclick={() => {
@@ -1268,55 +1291,162 @@
 											</svg>
 										</button>
 									</div>
-									<p class="mb-1 text-[10px] text-zinc-600">
-										<span class="font-mono text-zinc-500">{arr.countDefine}</span> = {arr.values.length}
-									</p>
-									<div class="space-y-0.5">
-										{#each arr.values as val, vi}
-											<div class="flex items-center gap-1">
-												<span class="w-4 text-right text-[9px] text-zinc-600">{vi}</span>
-												<input
-													type="text"
-													class="flex-1 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
-													value={val}
-													onchange={(e) => {
-														if (!selectedNode?.moduleData) return;
-														const updated = [...(selectedNode.moduleData.customArrays ?? [])];
-														const newValues = [...updated[ai].values];
-														newValues[vi] = (e.target as HTMLInputElement).value;
-														updated[ai] = { ...updated[ai], values: newValues };
-														onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
-													}}
-												/>
-												<button
-													class="text-zinc-600 hover:text-red-400"
-													onclick={() => {
-														if (!selectedNode?.moduleData) return;
-														const updated = [...(selectedNode.moduleData.customArrays ?? [])];
-														const newValues = [...updated[ai].values];
-														newValues.splice(vi, 1);
-														updated[ai] = { ...updated[ai], values: newValues };
-														onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
-													}}
-												>
-													<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-													</svg>
-												</button>
-											</div>
-										{/each}
-									</div>
-									<button
-										class="mt-1 w-full rounded border border-dashed border-zinc-700 py-0.5 text-[10px] text-zinc-500 hover:border-zinc-600 hover:text-zinc-400"
-										onclick={() => {
-											if (!selectedNode?.moduleData) return;
-											const updated = [...(selectedNode.moduleData.customArrays ?? [])];
-											updated[ai] = { ...updated[ai], values: [...updated[ai].values, ''] };
-											onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
-										}}
-									>
-										+ Add Item
-									</button>
+
+									{#if is2d}
+										{@const rows = arr.values2d ?? []}
+										{@const offsets = rows.reduce((acc, r, i) => { acc.push(i === 0 ? 0 : acc[i - 1] + rows[i - 1].length); return acc; }, [] as number[])}
+										<p class="mb-0.5 text-[10px] text-zinc-600">
+											<span class="font-mono text-zinc-500">{arr.countDefine}</span> = {rows.length}
+										</p>
+										<p class="mb-0.5 text-[10px] text-zinc-600">
+											<span class="font-mono text-zinc-500">{arr.name}_Offsets[]</span> = [{offsets.join(', ')}]
+										</p>
+										<p class="mb-1 text-[10px] text-zinc-600">
+											<span class="font-mono text-zinc-500">{arr.name}_RowCounts[]</span> = [{rows.map(r => r.length).join(', ')}]
+										</p>
+										<div class="space-y-1.5">
+											{#each rows as row, ri}
+												<div class="rounded border border-zinc-700/50 bg-zinc-900/50 px-1.5 py-1">
+													<div class="mb-0.5 flex items-center justify-between">
+														<span class="text-[9px] font-medium text-blue-400">Row {ri}</span>
+														<div class="flex items-center gap-1">
+															<span class="text-[9px] text-zinc-600">{row.length} items</span>
+															<button
+																class="text-zinc-600 hover:text-red-400"
+																onclick={() => {
+																	if (!selectedNode?.moduleData) return;
+																	const updated = [...(selectedNode.moduleData.customArrays ?? [])];
+																	const newRows = [...(updated[ai].values2d ?? [])];
+																	newRows.splice(ri, 1);
+																	updated[ai] = { ...updated[ai], values2d: newRows };
+																	onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
+																}}
+															>
+																<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+																</svg>
+															</button>
+														</div>
+													</div>
+													<div class="space-y-0.5">
+														{#each row as val, ci}
+															<div class="flex items-center gap-1">
+																<span class="w-4 text-right text-[9px] text-zinc-600">{ci}</span>
+																<input
+																	type="text"
+																	class="flex-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-blue-500 focus:outline-none"
+																	value={val}
+																	onchange={(e) => {
+																		if (!selectedNode?.moduleData) return;
+																		const updated = [...(selectedNode.moduleData.customArrays ?? [])];
+																		const newRows = [...(updated[ai].values2d ?? [])];
+																		const newRow = [...newRows[ri]];
+																		newRow[ci] = (e.target as HTMLInputElement).value;
+																		newRows[ri] = newRow;
+																		updated[ai] = { ...updated[ai], values2d: newRows };
+																		onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
+																	}}
+																/>
+																<button
+																	class="text-zinc-600 hover:text-red-400"
+																	onclick={() => {
+																		if (!selectedNode?.moduleData) return;
+																		const updated = [...(selectedNode.moduleData.customArrays ?? [])];
+																		const newRows = [...(updated[ai].values2d ?? [])];
+																		const newRow = [...newRows[ri]];
+																		newRow.splice(ci, 1);
+																		newRows[ri] = newRow;
+																		updated[ai] = { ...updated[ai], values2d: newRows };
+																		onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
+																	}}
+																>
+																	<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+																	</svg>
+																</button>
+															</div>
+														{/each}
+													</div>
+													<button
+														class="mt-0.5 w-full rounded border border-dashed border-zinc-700/50 py-0.5 text-[10px] text-zinc-600 hover:border-zinc-600 hover:text-zinc-400"
+														onclick={() => {
+															if (!selectedNode?.moduleData) return;
+															const updated = [...(selectedNode.moduleData.customArrays ?? [])];
+															const newRows = [...(updated[ai].values2d ?? [])];
+															newRows[ri] = [...newRows[ri], ''];
+															updated[ai] = { ...updated[ai], values2d: newRows };
+															onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
+														}}
+													>
+														+ Item
+													</button>
+												</div>
+											{/each}
+										</div>
+										<button
+											class="mt-1 w-full rounded border border-dashed border-zinc-700 py-0.5 text-[10px] text-blue-500 hover:border-blue-700 hover:text-blue-400"
+											onclick={() => {
+												if (!selectedNode?.moduleData) return;
+												const updated = [...(selectedNode.moduleData.customArrays ?? [])];
+												const newRows = [...(updated[ai].values2d ?? [])];
+												newRows.push(['']);
+												updated[ai] = { ...updated[ai], values2d: newRows };
+												onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
+											}}
+										>
+											+ Add Row
+										</button>
+									{:else}
+										<p class="mb-1 text-[10px] text-zinc-600">
+											<span class="font-mono text-zinc-500">{arr.countDefine}</span> = {arr.values.length}
+										</p>
+										<div class="space-y-0.5">
+											{#each arr.values as val, vi}
+												<div class="flex items-center gap-1">
+													<span class="w-4 text-right text-[9px] text-zinc-600">{vi}</span>
+													<input
+														type="text"
+														class="flex-1 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
+														value={val}
+														onchange={(e) => {
+															if (!selectedNode?.moduleData) return;
+															const updated = [...(selectedNode.moduleData.customArrays ?? [])];
+															const newValues = [...updated[ai].values];
+															newValues[vi] = (e.target as HTMLInputElement).value;
+															updated[ai] = { ...updated[ai], values: newValues };
+															onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
+														}}
+													/>
+													<button
+														class="text-zinc-600 hover:text-red-400"
+														onclick={() => {
+															if (!selectedNode?.moduleData) return;
+															const updated = [...(selectedNode.moduleData.customArrays ?? [])];
+															const newValues = [...updated[ai].values];
+															newValues.splice(vi, 1);
+															updated[ai] = { ...updated[ai], values: newValues };
+															onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
+														}}
+													>
+														<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+														</svg>
+													</button>
+												</div>
+											{/each}
+										</div>
+										<button
+											class="mt-1 w-full rounded border border-dashed border-zinc-700 py-0.5 text-[10px] text-zinc-500 hover:border-zinc-600 hover:text-zinc-400"
+											onclick={() => {
+												if (!selectedNode?.moduleData) return;
+												const updated = [...(selectedNode.moduleData.customArrays ?? [])];
+												updated[ai] = { ...updated[ai], values: [...updated[ai].values, ''] };
+												onUpdateNode(selectedNode.id, { moduleData: { ...selectedNode.moduleData, customArrays: updated } });
+											}}
+										>
+											+ Add Item
+										</button>
+									{/if}
 								</div>
 							{/each}
 						</div>
@@ -1325,7 +1455,10 @@
 							No arrays defined
 						</div>
 					{/if}
-					<p class="mt-1 text-[10px] text-zinc-600">Arrays are generated as <span class="font-mono">const string[]</span> with count defines</p>
+					<p class="mt-1 text-[10px] text-zinc-600">
+						<span class="font-mono">[]</span> flat string array &middot;
+						<span class="font-mono">[][]</span> 2D array for cascading items
+					</p>
 				</div>
 			{/if}
 

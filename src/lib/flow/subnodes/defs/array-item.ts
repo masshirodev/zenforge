@@ -18,14 +18,10 @@ function arrayAccessExpr(
 	const mode = (config.indexMode as string) || 'direct';
 	const parentVar = (config.parentVar as string) || '';
 
-	if (mode === '2d' && parentVar) {
-		return `${arrayName}[${parentVar}][${boundVar}]`;
-	}
-	if (mode === 'offset' && parentVar) {
-		const offsetArray = (config.offsetArray as string) || '';
-		if (offsetArray) {
-			return `${arrayName}[${offsetArray}[${parentVar}] + ${boundVar}]`;
-		}
+	if ((mode === '2d' || mode === 'offset') && parentVar) {
+		// Both 2d and offset use flattened array with offset table
+		const offsetArray = (config.offsetArray as string) || `${arrayName}_Offsets`;
+		return `${arrayName}[${offsetArray}[${parentVar}] + ${boundVar}]`;
 	}
 	return `${arrayName}[${boundVar}]`;
 }
@@ -39,7 +35,14 @@ function arrayAccessExpr(
  */
 function maxExpression(config: Record<string, unknown>): string {
 	const countMode = (config.countMode as string) || 'fixed';
+	const indexMode = (config.indexMode as string) || 'direct';
 	const parentVar = (config.parentVar as string) || '';
+
+	// 2d mode auto-derives count array from arrayName
+	if (indexMode === '2d' && parentVar) {
+		const arrayName = (config.arrayName as string) || '';
+		return `(${arrayName}_RowCounts[${parentVar}] - 1)`;
+	}
 
 	if (countMode === 'array' && parentVar) {
 		const countArray = (config.countArray as string) || '';
@@ -91,12 +94,12 @@ export const arrayItemDef: SubNodeDef = {
 				{ value: 'bracket', label: 'Brackets' },
 			],
 		},
-		{ key: 'prefixChar', label: 'Prefix Character', type: 'string', default: '>' },
-		{ key: 'prefixSpacing', label: 'Prefix Spacing', type: 'number', default: 1, min: 0, max: 4 },
+		{ key: 'prefixChar', label: 'Prefix Character', type: 'string', default: '>', visibleWhen: { key: 'cursorStyle', values: ['prefix'] } },
+		{ key: 'prefixSpacing', label: 'Prefix Spacing', type: 'number', default: 1, min: 0, max: 4, visibleWhen: { key: 'cursorStyle', values: ['prefix'] } },
 		{ key: 'arrayName', label: 'Array Name', type: 'string', default: '', description: 'Name of the const string[] array in GPC code' },
-		{ key: 'arraySize', label: 'Array Size', type: 'number', default: 10, min: 1, max: 100 },
-		{ key: 'useCountVar', label: 'Use Variable for Count', type: 'boolean', default: false, description: 'Use a define/variable (e.g. WEAPON_COUNT) instead of a fixed number' },
-		{ key: 'countVar', label: 'Count Variable', type: 'string', default: '', description: 'Define or variable holding the array length (e.g. WEAPON_COUNT)' },
+		{ key: 'arraySize', label: 'Array Size', type: 'number', default: 10, min: 1, max: 100, visibleWhen: { key: 'indexMode', values: ['direct', undefined, ''] } },
+		{ key: 'useCountVar', label: 'Use Variable for Count', type: 'boolean', default: false, description: 'Use a define/variable instead of a fixed number', visibleWhen: { key: 'indexMode', values: ['direct', undefined, ''] } },
+		{ key: 'countVar', label: 'Count Variable', type: 'string', default: '', description: 'Define or variable holding the array length (e.g. WEAPON_COUNT)', visibleWhen: { key: 'useCountVar', values: [true] } },
 		{
 			key: 'font',
 			label: 'Font',
@@ -116,8 +119,8 @@ export const arrayItemDef: SubNodeDef = {
 			description: 'How to index into the array. Use 2D or Offset for cascading dependencies.',
 			options: [
 				{ value: 'direct', label: 'Direct — array[index]' },
-				{ value: '2d', label: '2D — array[parent][index]' },
-				{ value: 'offset', label: 'Offset — array[offsets[parent] + index]' },
+				{ value: '2d', label: '2D — auto offsets from Array Builder' },
+				{ value: 'offset', label: 'Offset — custom offset/count arrays' },
 			],
 		},
 		{
@@ -126,13 +129,15 @@ export const arrayItemDef: SubNodeDef = {
 			type: 'string',
 			default: '',
 			description: 'Bound variable of the parent array-item this depends on',
+			visibleWhen: { key: 'indexMode', values: ['2d', 'offset'] },
 		},
 		{
 			key: 'offsetArray',
 			label: 'Offset Array',
 			type: 'string',
 			default: '',
-			description: 'Name of the int[] array holding per-parent offsets (for Offset mode)',
+			description: 'Name of the int[] array holding per-parent offsets',
+			visibleWhen: { key: 'indexMode', values: ['offset'] },
 		},
 		{
 			key: 'countMode',
@@ -145,13 +150,15 @@ export const arrayItemDef: SubNodeDef = {
 				{ value: 'variable', label: 'Variable — countVar' },
 				{ value: 'array', label: 'Array — countArray[parent]' },
 			],
+			visibleWhen: { key: 'indexMode', values: ['offset'] },
 		},
 		{
 			key: 'countArray',
 			label: 'Count Array',
 			type: 'string',
 			default: '',
-			description: 'Name of the int[] array holding per-parent counts (for Array count mode)',
+			description: 'Name of the int[] array holding per-parent counts',
+			visibleWhen: { key: 'indexMode', values: ['offset'] },
 		},
 	],
 	stackHeight: 8,
@@ -164,11 +171,10 @@ export const arrayItemDef: SubNodeDef = {
 		const parentVar = (config.parentVar as string) || '';
 
 		let valStr: string;
-		if (mode === '2d' && parentVar) {
-			valStr = `${arrayName}[${parentVar}][${val}]`;
-		} else if (mode === 'offset' && parentVar) {
-			const oa = (config.offsetArray as string) || 'Off';
-			valStr = `${arrayName}[${oa}[${parentVar}]+${val}]`;
+		if ((mode === '2d' || mode === 'offset') && parentVar) {
+			const oa = (config.offsetArray as string) || `${arrayName}_Offsets`;
+			const shortOa = oa.length > 12 ? '..Off' : oa;
+			valStr = `[${shortOa}[${parentVar}]+${val}]`;
 		} else {
 			valStr = `${arrayName}[${val}]`;
 		}
