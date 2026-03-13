@@ -176,16 +176,50 @@ export function exportAllCombosGPC(
 		.join('\n\n');
 }
 
-/** Export all combos in a project as data() blocks */
+/** Export all combos in a project as a single data() block */
 export function exportAllCombosData(
 	project: ComboProject,
 	targetConsole?: ConsoleType
 ): string {
 	const combos = getProjectCombos(project);
-	return combos
-		.map((c) => {
-			const legacy: ComboProject = { ...project, name: c.name, steps: c.steps };
-			return exportComboData(legacy, targetConsole);
-		})
-		.join('\n\n');
+	if (combos.length <= 1) {
+		return exportComboData(project, targetConsole);
+	}
+
+	const target = targetConsole ?? project.consoleType;
+	const axes = CONSOLE_AXES[target];
+	const sections: string[] = [];
+
+	for (const combo of combos) {
+		const name = sanitizeName(combo.name);
+		const stepLines: string[] = [];
+
+		for (const step of combo.steps) {
+			const translated = translateStepButtons(step, project.consoleType, target);
+			const inputs: string[] = [];
+			for (const b of translated.buttons) inputs.push(b.button);
+			for (const s of translated.sticks) {
+				const ax = s.axis === 'left' ? axes.lx : axes.rx;
+				const ay = s.axis === 'left' ? axes.ly : axes.ry;
+				if (s.x !== 0) inputs.push(ax);
+				if (s.y !== 0) inputs.push(ay);
+			}
+			const waitCs = Math.min(Math.max(Math.round(step.waitMs / 10), 0), 254);
+			const comment = step.label ? `  // ${step.label}` : '';
+			const parts = inputs.length > 0
+				? `${inputs.length},${inputs.join(',')},${waitCs},`
+				: `0,${waitCs},`;
+			stepLines.push(parts + comment);
+		}
+
+		sections.push(
+			`// ${name} — ${combo.steps.length} step(s)\n` +
+			'// Format: button_count, buttons..., wait (x10ms) per step\n\n' +
+			`${name},\n` +
+			stepLines.join('\n') + '\n' +
+			'EOC,'
+		);
+	}
+
+	return 'data(\n' + sections.join('\n\n') + '\nEOD );';
 }

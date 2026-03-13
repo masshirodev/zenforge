@@ -43,6 +43,7 @@ export function syncModuleMenus(project: FlowProject): boolean {
 
 	let changed = false;
 
+	const suppressedMenus = new Set(menuFlow.suppressedModuleMenus ?? []);
 	const confirmButton = menuFlow.settings.buttonMapping.confirm;
 	const cancelButton = menuFlow.settings.buttonMapping.cancel;
 
@@ -80,8 +81,9 @@ export function syncModuleMenus(project: FlowProject): boolean {
 		existingMenuItems.map((s) => [s.config[AUTO_TAG] as string, s])
 	);
 
-	// Add missing menu-items
+	// Add missing menu-items (skip user-suppressed modules)
 	for (const [moduleId, modNode] of moduleMap) {
+		if (suppressedMenus.has(moduleId)) continue;
 		if (!existingMenuItemModules.has(moduleId)) {
 			const menuItem = createMenuItemSubNode(
 				modNode.label,
@@ -116,6 +118,7 @@ export function syncModuleMenus(project: FlowProject): boolean {
 	let submenuIndex = 0;
 
 	for (const [moduleId, modNode] of moduleMap) {
+		if (suppressedMenus.has(moduleId)) continue;
 		const moduleData = modNode.moduleData!;
 		let submenuNode = existingSubmenuNodes.get(moduleId);
 
@@ -198,6 +201,9 @@ export function syncModuleMenus(project: FlowProject): boolean {
 
 		// --- Reconcile submenu variables (add missing, sync existing) ---
 		for (const opt of desiredOptions) {
+			const isToggle = opt.type === 'toggle';
+			const varMin = isToggle ? 0 : opt.min;
+			const varMax = isToggle ? 1 : opt.max;
 			const existing = submenuNode.variables.find((v) => v.name === opt.variable);
 			if (!existing) {
 				submenuNode.variables.push({
@@ -205,14 +211,14 @@ export function syncModuleMenus(project: FlowProject): boolean {
 					type: 'int',
 					defaultValue: opt.defaultValue,
 					persist: true,
-					min: opt.min,
-					max: opt.max,
+					min: varMin,
+					max: varMax,
 				});
 				changed = true;
 			} else {
 				if (existing.defaultValue !== opt.defaultValue) { existing.defaultValue = opt.defaultValue; changed = true; }
-				if (existing.min !== opt.min) { existing.min = opt.min; changed = true; }
-				if (existing.max !== opt.max) { existing.max = opt.max; changed = true; }
+				if (existing.min !== varMin) { existing.min = varMin; changed = true; }
+				if (existing.max !== varMax) { existing.max = varMax; changed = true; }
 			}
 		}
 
@@ -253,6 +259,15 @@ export function syncModuleMenus(project: FlowProject): boolean {
 		}
 	}
 
+	// --- Clean stale suppressions (module removed from gameplay) ---
+	if (menuFlow.suppressedModuleMenus?.length) {
+		const cleaned = menuFlow.suppressedModuleMenus.filter((id) => activeModuleIds.has(id));
+		if (cleaned.length !== menuFlow.suppressedModuleMenus.length) {
+			menuFlow.suppressedModuleMenus = cleaned.length > 0 ? cleaned : undefined;
+			changed = true;
+		}
+	}
+
 	// --- Remove edges whose source sub-node no longer exists ---
 	const allSubNodeIds = new Set(menuFlow.nodes.flatMap((n) => n.subNodes.map((s) => s.id)));
 	const prevEdgeLen = menuFlow.edges.length;
@@ -276,11 +291,14 @@ export function syncModuleMenus(project: FlowProject): boolean {
 	for (const modNode of allModuleNodes) {
 		const md = modNode.moduleData!;
 		for (const opt of md.options) {
+			const isToggle = opt.type === 'toggle';
+			const optMin = isToggle ? 0 : opt.min;
+			const optMax = isToggle ? 1 : opt.max;
 			const nodeVar = modNode.variables.find((v) => v.name === opt.variable);
 			if (nodeVar) {
 				if (nodeVar.defaultValue !== opt.defaultValue) { nodeVar.defaultValue = opt.defaultValue; changed = true; }
-				if (nodeVar.min !== opt.min) { nodeVar.min = opt.min; changed = true; }
-				if (nodeVar.max !== opt.max) { nodeVar.max = opt.max; changed = true; }
+				if (nodeVar.min !== optMin) { nodeVar.min = optMin; changed = true; }
+				if (nodeVar.max !== optMax) { nodeVar.max = optMax; changed = true; }
 			}
 		}
 	}
@@ -384,6 +402,7 @@ function createMenuItemSubNode(moduleName: string, moduleId: string, order: numb
 		id: crypto.randomUUID(),
 		type: 'menu-item',
 		label: moduleName,
+		displayText: moduleName,
 		position: 'stack',
 		order,
 		interactive: true,
@@ -408,6 +427,7 @@ function createToggleSubNode(
 		id: crypto.randomUUID(),
 		type: 'toggle-item',
 		label,
+		displayText: label,
 		position: 'stack',
 		order,
 		interactive: true,
@@ -439,6 +459,7 @@ function createValueSubNode(
 		id: crypto.randomUUID(),
 		type: 'value-item',
 		label,
+		displayText: label,
 		position: 'stack',
 		order,
 		interactive: true,
@@ -473,6 +494,7 @@ function createArraySubNode(
 		id: crypto.randomUUID(),
 		type: 'array-item',
 		label,
+		displayText: label,
 		position: 'stack',
 		order,
 		interactive: true,

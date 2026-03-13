@@ -15,6 +15,7 @@ export function renderNodePreview(node: FlowNode): Uint8Array {
 	const sortedSubs = getSortedSubNodes(node);
 
 	for (const sub of sortedSubs) {
+		if (sub.hidden) continue;
 		const def = getSubNodeDef(sub.type);
 		if (!def) continue;
 
@@ -32,7 +33,7 @@ export function renderNodePreview(node: FlowNode): Uint8Array {
 			boundValue: undefined
 		};
 
-		const configWithLabel = { ...sub.config, label: sub.displayText ?? sub.label };
+		const configWithLabel = { ...sub.config, label: sub.displayText ?? '' };
 		def.render(configWithLabel, ctx);
 	}
 

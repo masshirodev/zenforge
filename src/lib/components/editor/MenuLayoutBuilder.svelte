@@ -25,6 +25,13 @@
 	let saveName = $state('');
 	let showSaveForm = $state(false);
 
+	// Reset highlighted preset when modal reopens or node changes
+	$effect(() => {
+		void node.id;
+		void open;
+		activePreset = null;
+	});
+
 	// Saved layout templates (localStorage)
 	// Saves layout settings (offsets, scroll, visible count) — NOT the sub-node items.
 	// Users apply a template to an already-built node to adjust its layout.
@@ -250,7 +257,7 @@
 			const sorted = getSortedSubNodes(node);
 			for (let i = 0; i < Math.min(sorted.length, preset.subNodes.length); i++) {
 				const presetSub = preset.subNodes[i];
-				const updates: Partial<SubNode> = { label: presetSub.label };
+				const updates: Partial<SubNode> = { label: presetSub.label, displayText: presetSub.label };
 				if (presetSub.config) {
 					updates.config = { ...sorted[i].config, ...presetSub.config };
 				}

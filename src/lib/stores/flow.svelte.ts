@@ -268,10 +268,24 @@ export function addNode(type: FlowNodeType, position: { x: number; y: number }):
 export function removeNode(nodeId: string) {
 	if (!state.graph) return;
 	pushUndo('Remove node');
+
+	// Track removal of auto-generated module submenu nodes so syncModuleMenus won't recreate them
+	const node = state.graph.nodes.find((n) => n.id === nodeId);
+	if (node?.chunkRef?.startsWith('__auto_module:')) {
+		const moduleId = node.chunkRef.slice('__auto_module:'.length);
+		const menuFlow = state.project?.flows.find((f) => f.flowType === 'menu');
+		if (menuFlow) {
+			menuFlow.suppressedModuleMenus = [
+				...(menuFlow.suppressedModuleMenus ?? []),
+				moduleId,
+			];
+		}
+	}
+
 	state.graph.edges = state.graph.edges.filter(
 		(e) => e.sourceNodeId !== nodeId && e.targetNodeId !== nodeId
 	);
-	const wasInitial = state.graph.nodes.find((n) => n.id === nodeId)?.isInitialState;
+	const wasInitial = node?.isInitialState;
 	state.graph.nodes = state.graph.nodes.filter((n) => n.id !== nodeId);
 	if (wasInitial && state.graph.nodes.length > 0) {
 		state.graph.nodes[0].isInitialState = true;
@@ -287,6 +301,24 @@ export function removeNodes(nodeIds: string[]) {
 	if (!state.graph || nodeIds.length === 0) return;
 	pushUndo('Remove nodes');
 	const idSet = new Set(nodeIds);
+
+	// Track removal of auto-generated module submenu nodes
+	const menuFlow = state.project?.flows.find((f) => f.flowType === 'menu');
+	if (menuFlow) {
+		const suppressedIds: string[] = [];
+		for (const n of state.graph.nodes) {
+			if (idSet.has(n.id) && n.chunkRef?.startsWith('__auto_module:')) {
+				suppressedIds.push(n.chunkRef.slice('__auto_module:'.length));
+			}
+		}
+		if (suppressedIds.length > 0) {
+			menuFlow.suppressedModuleMenus = [
+				...(menuFlow.suppressedModuleMenus ?? []),
+				...suppressedIds,
+			];
+		}
+	}
+
 	state.graph.edges = state.graph.edges.filter(
 		(e) => !idSet.has(e.sourceNodeId) && !idSet.has(e.targetNodeId)
 	);

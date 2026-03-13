@@ -1,11 +1,12 @@
 <script lang="ts">
-	import type { DrawTool, BrushShape, TextState, FontSize, TextAlign } from './types';
+	import type { DrawTool, BrushShape, TextState, FontSize, TextAlign, SelectionState } from './types';
 
 	interface Props {
 		tool: DrawTool;
 		brush: BrushShape;
 		filled: boolean;
 		textState: TextState;
+		selection: SelectionState;
 		onToolChange: (tool: DrawTool) => void;
 		onBrushChange: (brush: BrushShape) => void;
 		onFilledChange: (filled: boolean) => void;
@@ -15,9 +16,14 @@
 		onInvert: () => void;
 		onShift: (dx: number, dy: number) => void;
 		onImport: () => void;
+		onSelectionDelete: () => void;
+		onSelectionCopy: () => void;
+		onSelectionPaste: () => void;
+		onSelectionDeselect: () => void;
+		onSelectionSelectAll: () => void;
 	}
 
-	let { tool, brush, filled, textState, onToolChange, onBrushChange, onFilledChange, onTextChange, onTextApply, onClear, onInvert, onShift, onImport }: Props =
+	let { tool, brush, filled, textState, selection, onToolChange, onBrushChange, onFilledChange, onTextChange, onTextApply, onClear, onInvert, onShift, onImport, onSelectionDelete, onSelectionCopy, onSelectionPaste, onSelectionDeselect, onSelectionSelectAll }: Props =
 		$props();
 
 	const fontSizes: FontSize[] = ['3x5', '5x7', '8x8'];
@@ -28,6 +34,7 @@
 	];
 
 	const tools: { id: DrawTool; label: string; key: string; icon: string }[] = [
+		{ id: 'select', label: 'Select', key: 'S', icon: 'M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14v6h6v-2H6v-4H4zm16 0v6h-6v-2h4v-4h2z' },
 		{ id: 'pen', label: 'Pen', key: 'P', icon: 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z' },
 		{ id: 'eraser', label: 'Eraser', key: 'E', icon: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' },
 		{ id: 'line', label: 'Line', key: 'L', icon: 'M4 20L20 4' },
@@ -37,6 +44,8 @@
 		{ id: 'text', label: 'Text', key: 'T', icon: 'M4 6h16M4 6v2m16-2v2M7 6v12m0 0h2m-2 0H5m12-12v12m0 0h2m-2 0h-2' },
 		{ id: 'move', label: 'Move', key: 'M', icon: 'M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20' },
 	];
+
+	let hasSelection = $derived(selection.x >= 0);
 </script>
 
 <div class="flex flex-col gap-3">
@@ -133,6 +142,52 @@
 					onclick={() => onFilledChange(false)}
 				>
 					Outline
+				</button>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Selection Actions -->
+	{#if tool === 'select'}
+		<div>
+			<h3 class="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">Selection</h3>
+			<div class="space-y-1">
+				{#if hasSelection}
+					<p class="text-xs text-zinc-500">
+						{selection.w}x{selection.h} at ({selection.floating ? selection.floatingX : selection.x}, {selection.floating ? selection.floatingY : selection.y})
+					</p>
+					<button
+						class="w-full rounded px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800"
+						onclick={onSelectionDelete}
+					>
+						Delete (Del)
+					</button>
+					<button
+						class="w-full rounded px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800"
+						onclick={onSelectionCopy}
+					>
+						Copy (Ctrl+C)
+					</button>
+					<button
+						class="w-full rounded px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800"
+						onclick={onSelectionDeselect}
+					>
+						Deselect (Esc)
+					</button>
+				{:else}
+					<p class="text-xs text-zinc-500">Drag to select a region</p>
+				{/if}
+				<button
+					class="w-full rounded px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800"
+					onclick={onSelectionPaste}
+				>
+					Paste (Ctrl+V)
+				</button>
+				<button
+					class="w-full rounded px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800"
+					onclick={onSelectionSelectAll}
+				>
+					Select All (Ctrl+A)
 				</button>
 			</div>
 		</div>

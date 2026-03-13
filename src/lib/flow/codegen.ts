@@ -457,6 +457,43 @@ export function generateFlowGpc(
 		if (node.variables.length > 0 || interactiveSubs.length > 0) {
 			lines.push(``);
 		}
+
+		// Auto-declare animation variables for animation sub-nodes
+		const animSubs = node.subNodes.filter((s) => s.type === 'animation' && !s.hidden);
+		if (animSubs.length > 0) {
+			lines.push(`// Animation variables for ${node.label}`);
+			for (const sub of animSubs) {
+				const scenes = sub.config.scenes as unknown[];
+				const frameCount = Array.isArray(scenes) ? scenes.length : 0;
+				if (frameCount <= 1) continue;
+				const timerVar = `Flow_${safeName}_animTimer`;
+				const frameVar = `Flow_${safeName}_animFrame`;
+				const prevFrameVar = `Flow_${safeName}_animPrevFrame`;
+				const doneVar = `Flow_${safeName}_animDone`;
+				if (!declaredVars.has(timerVar)) {
+					lines.push(`int ${timerVar};`);
+					declaredVars.add(timerVar);
+				}
+				if (!declaredVars.has(frameVar)) {
+					lines.push(`int ${frameVar};`);
+					declaredVars.add(frameVar);
+				}
+				if (!declaredVars.has(prevFrameVar)) {
+					lines.push(`int ${prevFrameVar} = -1;`);
+					declaredVars.add(prevFrameVar);
+				}
+				if (!declaredVars.has(doneVar)) {
+					lines.push(`int ${doneVar};`);
+					declaredVars.add(doneVar);
+				}
+				const delayTimerVar = `Flow_${safeName}_animDelay`;
+				if (!declaredVars.has(delayTimerVar)) {
+					lines.push(`int ${delayTimerVar};`);
+					declaredVars.add(delayTimerVar);
+				}
+			}
+			lines.push(``);
+		}
 	}
 
 	// Global code
@@ -476,7 +513,7 @@ export function generateFlowGpc(
 	for (const node of sorted) {
 		if (node.subNodes.length === 0) continue;
 		const safeName = sanitizeName(node.label);
-		const sortedSubs = getSortedSubNodes(node);
+		const sortedSubs = getSortedSubNodes(node).filter((s) => !s.hidden);
 		const strings: string[] = [];
 		const images: string[] = [];
 		const stringArrayName = `FlowText_${safeName}`;
@@ -565,7 +602,7 @@ export function generateFlowGpc(
 				images,
 			};
 
-			const configWithLabel = { ...sub.config, label: sub.displayText ?? sub.label };
+			const configWithLabel = { ...sub.config, label: sub.displayText ?? '' };
 			const code = def.generateGpc(configWithLabel, ctx);
 			if (code.trim()) {
 				// Build code with optional condition guard
@@ -715,15 +752,67 @@ export function generateFlowGpc(
 			lines.push(`    block_all_inputs();`);
 		}
 
+		// Collect animation sub-nodes for this node
+		const animSubs = node.subNodes.filter((s) => s.type === 'animation' && !s.hidden);
+		const hasMultiFrameAnim = animSubs.some((s) => {
+			const scenes = s.config.scenes as unknown[];
+			return Array.isArray(scenes) && scenes.length > 1;
+		});
+
 		// onEnter logic (runs once when entering state)
-		if (node.onEnter.trim()) {
+		if (node.onEnter.trim() || hasMultiFrameAnim) {
 			lines.push(`    // On enter`);
 			lines.push(`    if(FlowEntered) {`);
 			lines.push(`        FlowEntered = FALSE;`);
-			for (const line of node.onEnter.trim().split('\n')) {
-				lines.push(`        ${line.trim()}`);
+			if (node.onEnter.trim()) {
+				for (const line of node.onEnter.trim().split('\n')) {
+					lines.push(`        ${line.trim()}`);
+				}
+			}
+			// Reset animation timers
+			if (hasMultiFrameAnim) {
+				lines.push(`        // Reset animation`);
+				lines.push(`        Flow_${safeName}_animTimer = 0;`);
+				lines.push(`        Flow_${safeName}_animFrame = 0;`);
+				lines.push(`        Flow_${safeName}_animPrevFrame = -1;`);
+				lines.push(`        Flow_${safeName}_animDone = FALSE;`);
+				lines.push(`        Flow_${safeName}_animDelay = 0;`);
 			}
 			lines.push(`    }`);
+		}
+
+		// Animation timer advancement (runs every cycle, outside FlowRedraw)
+		if (hasMultiFrameAnim) {
+			const animSub = animSubs.find((s) => {
+				const scenes = s.config.scenes as unknown[];
+				return Array.isArray(scenes) && scenes.length > 1;
+			})!;
+			const frameDelayMs = (animSub.config.frameDelayMs as number) || 100;
+			const loop = animSub.config.loop !== false;
+			const scenes = animSub.config.scenes as unknown[];
+			const frameCount = scenes.length;
+			const timerVar = `Flow_${safeName}_animTimer`;
+			const frameVar = `Flow_${safeName}_animFrame`;
+			const prevFrameVar = `Flow_${safeName}_animPrevFrame`;
+			const doneVar = `Flow_${safeName}_animDone`;
+
+			lines.push(``);
+			lines.push(`    // Animation timing`);
+			if (loop) {
+				lines.push(`    ${frameVar} = (${timerVar} / ${frameDelayMs}) % ${frameCount};`);
+			} else {
+				lines.push(`    ${frameVar} = ${timerVar} / ${frameDelayMs};`);
+				lines.push(`    if(${frameVar} >= ${frameCount}) { ${frameVar} = ${frameCount - 1}; ${doneVar} = TRUE; }`);
+			}
+			lines.push(`    if(${frameVar} != ${prevFrameVar}) { ${prevFrameVar} = ${frameVar}; FlowRedraw = TRUE; }`);
+			if (!loop) {
+				lines.push(`    if(!${doneVar}) { ${timerVar} = ${timerVar} + get_rtime(); }`);
+				// After done, advance delay timer for transition delay
+				const delayTimerVar = `Flow_${safeName}_animDelay`;
+				lines.push(`    if(${doneVar}) { ${delayTimerVar} = ${delayTimerVar} + get_rtime(); }`);
+			} else {
+				lines.push(`    ${timerVar} = ${timerVar} + get_rtime();`);
+			}
 		}
 
 		if (hasSubNodes) {
@@ -866,7 +955,7 @@ export function generateFlowGpc(
 				const targetNode = nodes.find((n) => n.id === edge.targetNodeId);
 				if (!targetNode) continue;
 				const targetName = sanitizeName(targetNode.label);
-				const condition = generateConditionCode(edge);
+				const condition = generateConditionCode(edge, node);
 
 				if (condition) {
 					// Sub-node level edge: wrap with cursor index check
@@ -967,7 +1056,7 @@ export function generateFlowGpc(
 // ==================== Helpers ====================
 
 function getInteractiveSubNodes(node: FlowNode): SubNode[] {
-	return getSortedSubNodes(node).filter((sn) => sn.interactive);
+	return getSortedSubNodes(node).filter((sn) => sn.interactive && !sn.hidden);
 }
 
 function generateVarDeclaration(v: FlowVariable, profileCount: number = 0): string {
@@ -997,7 +1086,7 @@ function sanitizeName(name: string): string {
 		.replace(/_+/g, '_');
 }
 
-function generateConditionCode(edge: FlowEdge): string | null {
+function generateConditionCode(edge: FlowEdge, sourceNode?: FlowNode): string | null {
 	const c = edge.condition;
 	const modChecks = (c.modifiers ?? [])
 		.filter(Boolean)
@@ -1026,6 +1115,19 @@ function generateConditionCode(edge: FlowEdge): string | null {
 		case 'custom':
 			result = c.customCode?.trim() || null;
 			break;
+		case 'animation_end': {
+			if (!sourceNode) return null;
+			const safeSrcName = sanitizeName(sourceNode.label);
+			const doneVar = `Flow_${safeSrcName}_animDone`;
+			const delayMs = c.delayMs ?? 0;
+			if (delayMs > 0) {
+				const delayTimerVar = `Flow_${safeSrcName}_animDelay`;
+				result = `${doneVar} && ${delayTimerVar} > ${delayMs}`;
+			} else {
+				result = doneVar;
+			}
+			break;
+		}
 		default:
 			return null;
 	}

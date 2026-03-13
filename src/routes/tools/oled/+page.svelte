@@ -10,43 +10,76 @@
 	import SequencerPanel from './SequencerPanel.svelte';
 	import CodeRunnerModal from './CodeRunnerModal.svelte';
 	import SpriteStampPanel from './SpriteStampPanel.svelte';
+	import LayerPanel from './LayerPanel.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import { getFlowOledTransfer, setFlowOledTransfer, clearFlowOledTransfer } from '$lib/stores/flow-transfer.svelte';
 	import { goto } from '$app/navigation';
 	import { PixelHistory } from './history';
 	import { shiftPixels, drawText } from './drawing';
-	import { createEmptyPixels, clonePixels, invertPixels, pixelsToBase64, base64ToPixels, getPixel } from './pixels';
+	import { createEmptyPixels, clonePixels, invertPixels, pixelsToBase64, base64ToPixels, getPixel, extractRegion, clearRegion, stampRegion } from './pixels';
 	import { bytesPerRow } from '$lib/utils/sprite-pixels';
 	import { getFont } from './fonts';
-	import { OLED_WIDTH, OLED_HEIGHT, type OledScene, type DrawTool, type BrushShape, type AnimationConfig, type OledProject, type TextState } from './types';
+	import { OLED_WIDTH, OLED_HEIGHT, type OledScene, type DrawTool, type BrushShape, type AnimationConfig, type OledProject, type TextState, type SelectionState, type Guide, type OledLayer } from './types';
 	import { writeFile, readFile } from '$lib/tauri/commands';
 
 	// --- Flow editor transfer ---
 	const flowTransfer = getFlowOledTransfer();
 	let isFlowMode = $state(!!flowTransfer);
+	let isAnimationMode = $state(!!flowTransfer?.animation);
+	let isLayerMode = $state(!!(flowTransfer?.layers && flowTransfer.layers.length > 0) && !flowTransfer?.animation);
 
-	// Decode overlay pixels from sibling pixel-art subnodes
-	const overlayPixelBuffers: Uint8Array[] = (flowTransfer?.overlayPixels ?? [])
+	// Decode overlay pixels from sibling pixel-art subnodes (non-layer mode only)
+	const overlayPixelBuffers: Uint8Array[] = isLayerMode ? [] : (flowTransfer?.overlayPixels ?? [])
 		.map((b64) => { try { return base64ToPixels(b64); } catch { return null; } })
 		.filter((p): p is Uint8Array => p !== null);
 
+	// --- Layer state ---
+	let layers = $state<OledLayer[]>(
+		isLayerMode
+			? flowTransfer!.layers!.map((l) => ({
+					id: l.subNodeId,
+					label: l.label,
+					pixels: (() => { try { return base64ToPixels(l.pixels); } catch { return createEmptyPixels(); } })(),
+					visible: l.visible,
+					condition: l.condition ?? null,
+				}))
+			: []
+	);
+	let activeLayerId = $state<string>(isLayerMode ? (layers[0]?.id ?? '') : '');
+
+	let activeLayer = $derived(layers.find((l) => l.id === activeLayerId));
+
+	// Compute overlay pixels from other visible layers (for layer mode canvas)
+	let layerOverlayPixels = $derived(
+		isLayerMode
+			? layers
+					.filter((l) => l.id !== activeLayerId && l.visible)
+					.map((l) => l.pixels)
+			: overlayPixelBuffers
+	);
+
 	// --- State ---
-	const initialId: string = flowTransfer?.scene?.id || (crypto.randomUUID() as string);
-	const initialPixels: Uint8Array = flowTransfer?.scene?.pixels
-		? base64ToPixels(flowTransfer.scene.pixels)
-		: createEmptyPixels();
-	let scenes = $state<OledScene[]>([
-		{
-			id: initialId,
-			name: flowTransfer?.scene?.name || 'Scene 1',
-			pixels: initialPixels
-		}
-	]);
-	let activeSceneId = $state<string>(initialId);
+	const animTransfer = flowTransfer?.animation;
+	const initialScenes: OledScene[] = animTransfer && animTransfer.scenes.length > 0
+		? animTransfer.scenes.map((s) => ({
+				id: s.id,
+				name: s.name,
+				pixels: (() => { try { return base64ToPixels(s.pixels); } catch { return createEmptyPixels(); } })(),
+			}))
+		: [{
+				id: flowTransfer?.scene?.id || (crypto.randomUUID() as string),
+				name: flowTransfer?.scene?.name || 'Scene 1',
+				pixels: flowTransfer?.scene?.pixels ? base64ToPixels(flowTransfer.scene.pixels) : createEmptyPixels(),
+			}];
+	let scenes = $state<OledScene[]>(initialScenes);
+	let activeSceneId = $state<string>(initialScenes[0].id);
 	let tool = $state<DrawTool>('pen');
 	let brush = $state<BrushShape>({ type: 'square', width: 1, height: 1 });
 	let shapeFilled = $state(true);
-	let animationConfig = $state<AnimationConfig>({ frameDelayMs: 500, loop: true });
+	let animationConfig = $state<AnimationConfig>({
+		frameDelayMs: animTransfer?.frameDelayMs ?? 500,
+		loop: animTransfer?.loop ?? true,
+	});
 	let textState = $state<TextState>({ text: '', fontSize: '5x7', align: 'left', originX: -1, originY: -1 });
 	let showImport = $state(false);
 	let showExport = $state(false);
@@ -59,6 +92,13 @@
 	let importStampActive = $state(false);
 	let importStampBase = $state<{ pixels: Uint8Array; width: number; height: number } | null>(null);
 	let pixelVersion = $state(0);
+
+	// Selection state
+	let selection = $state<SelectionState>({ x: -1, y: -1, w: 0, h: 0, floating: null, floatingX: 0, floatingY: 0, isDragging: false });
+	let clipboard = $state<{ data: Uint8Array; w: number; h: number } | null>(null);
+
+	// Guide state
+	let guides = $state<Guide[]>([]);
 
 	// Per-scene history
 	let historyMap = $state<Map<string, PixelHistory>>(new Map());
@@ -73,6 +113,9 @@
 	}
 
 	let activeScene = $derived(scenes.find((s) => s.id === activeSceneId) || scenes[0]);
+
+	// In layer mode, the "active pixels" come from the active layer
+	let activePixels = $derived(isLayerMode ? (activeLayer?.pixels ?? createEmptyPixels()) : activeScene.pixels);
 
 	// --- Scene CRUD ---
 	function addScene() {
@@ -121,13 +164,23 @@
 
 	// --- Drawing callbacks ---
 	function handleBeforeDraw() {
-		getHistory(activeSceneId).push(activeScene.pixels);
+		if (isLayerMode) {
+			getHistory(activeLayerId).push(activeLayer?.pixels ?? createEmptyPixels());
+		} else {
+			getHistory(activeSceneId).push(activeScene.pixels);
+		}
 	}
 
 	function handleDraw(newPixels: Uint8Array) {
-		scenes = scenes.map((s) =>
-			s.id === activeSceneId ? { ...s, pixels: newPixels } : s
-		);
+		if (isLayerMode) {
+			layers = layers.map((l) =>
+				l.id === activeLayerId ? { ...l, pixels: newPixels } : l
+			);
+		} else {
+			scenes = scenes.map((s) =>
+				s.id === activeSceneId ? { ...s, pixels: newPixels } : s
+			);
+		}
 		pixelVersion++;
 	}
 
@@ -139,26 +192,28 @@
 
 	function handleInvert() {
 		handleBeforeDraw();
-		handleDraw(invertPixels(activeScene.pixels));
+		handleDraw(invertPixels(activePixels));
 	}
 
 	function handleShift(dx: number, dy: number) {
 		handleBeforeDraw();
-		handleDraw(shiftPixels(activeScene.pixels, dx, dy));
+		handleDraw(shiftPixels(activePixels, dx, dy));
 	}
 
 	// --- Undo/Redo ---
 	function undo() {
-		const h = getHistory(activeSceneId);
-		const prev = h.undo(activeScene.pixels);
+		const histId = isLayerMode ? activeLayerId : activeSceneId;
+		const h = getHistory(histId);
+		const prev = h.undo(activePixels);
 		if (prev) {
 			handleDraw(prev);
 		}
 	}
 
 	function redo() {
-		const h = getHistory(activeSceneId);
-		const next = h.redo(activeScene.pixels);
+		const histId = isLayerMode ? activeLayerId : activeSceneId;
+		const h = getHistory(histId);
+		const next = h.redo(activePixels);
 		if (next) {
 			handleDraw(next);
 		}
@@ -241,7 +296,7 @@
 		if (!textState.text || textState.originX < 0) return;
 		handleBeforeDraw();
 		const font = getFont(textState.fontSize);
-		const updated = clonePixels(activeScene.pixels);
+		const updated = clonePixels(activePixels);
 		drawText(updated, textState.text, textState.originX, textState.originY, font, true, textState.align);
 		handleDraw(updated);
 		textState = { ...textState, text: '', originX: -1, originY: -1 };
@@ -309,6 +364,164 @@
 		addToast(`Inserted ${newScenes.length} animation scenes`, 'success', 2000);
 	}
 
+	// --- Selection actions ---
+	function handleSelectionChange(sel: SelectionState) {
+		selection = sel;
+	}
+
+	function handleGuidesChange(newGuides: Guide[]) {
+		guides = newGuides;
+	}
+
+	function commitFloating() {
+		if (!selection.floating) return;
+		handleBeforeDraw();
+		const updated = clonePixels(activePixels);
+		stampRegion(updated, selection.floating, selection.w, selection.h, selection.floatingX, selection.floatingY);
+		handleDraw(updated);
+		selection = { x: -1, y: -1, w: 0, h: 0, floating: null, floatingX: 0, floatingY: 0, isDragging: false };
+	}
+
+	function handleSelectionDelete() {
+		if (selection.floating) {
+			// Discard floating pixels
+			selection = { x: -1, y: -1, w: 0, h: 0, floating: null, floatingX: 0, floatingY: 0, isDragging: false };
+		} else if (selection.x >= 0) {
+			handleBeforeDraw();
+			const updated = clonePixels(activePixels);
+			clearRegion(updated, selection.x, selection.y, selection.w, selection.h);
+			handleDraw(updated);
+			selection = { x: -1, y: -1, w: 0, h: 0, floating: null, floatingX: 0, floatingY: 0, isDragging: false };
+		}
+	}
+
+	function handleSelectionCopy() {
+		if (selection.x < 0) return;
+		if (selection.floating) {
+			clipboard = { data: new Uint8Array(selection.floating), w: selection.w, h: selection.h };
+		} else {
+			const buf = extractRegion(activePixels, selection.x, selection.y, selection.w, selection.h);
+			clipboard = { data: buf, w: selection.w, h: selection.h };
+		}
+		addToast('Copied to clipboard', 'info', 1500);
+	}
+
+	function handleSelectionPaste() {
+		if (!clipboard) {
+			addToast('Nothing to paste', 'info', 1500);
+			return;
+		}
+		// Commit any existing floating selection first
+		if (selection.floating) commitFloating();
+
+		tool = 'select';
+		selection = {
+			x: 0,
+			y: 0,
+			w: clipboard.w,
+			h: clipboard.h,
+			floating: new Uint8Array(clipboard.data),
+			floatingX: 0,
+			floatingY: 0,
+			isDragging: false
+		};
+	}
+
+	function handleSelectionDeselect() {
+		if (selection.floating) {
+			commitFloating();
+		} else {
+			selection = { x: -1, y: -1, w: 0, h: 0, floating: null, floatingX: 0, floatingY: 0, isDragging: false };
+		}
+	}
+
+	function handleSelectionSelectAll() {
+		tool = 'select';
+		selection = { x: 0, y: 0, w: OLED_WIDTH, h: OLED_HEIGHT, floating: null, floatingX: 0, floatingY: 0, isDragging: false };
+	}
+
+	// --- Layer actions ---
+	function handleLayerAdd() {
+		const newLayer: OledLayer = {
+			id: crypto.randomUUID(),
+			label: `Layer ${layers.length + 1}`,
+			pixels: createEmptyPixels(),
+			visible: true,
+			condition: null
+		};
+		layers = [...layers, newLayer];
+		activeLayerId = newLayer.id;
+	}
+
+	function handleLayerDelete(id: string) {
+		if (layers.length <= 1) return;
+		const idx = layers.findIndex((l) => l.id === id);
+		layers = layers.filter((l) => l.id !== id);
+		historyMap.delete(id);
+		if (activeLayerId === id) {
+			activeLayerId = layers[Math.min(idx, layers.length - 1)].id;
+		}
+	}
+
+	function handleLayerRename(id: string, name: string) {
+		layers = layers.map((l) => (l.id === id ? { ...l, label: name } : l));
+	}
+
+	function handleLayerReorder(fromIndex: number, toIndex: number) {
+		const updated = [...layers];
+		const [moved] = updated.splice(fromIndex, 1);
+		updated.splice(toIndex, 0, moved);
+		layers = updated;
+	}
+
+	function handleLayerToggleVisibility(id: string) {
+		layers = layers.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l));
+	}
+
+	function handleLayerMergeDown(id: string) {
+		const idx = layers.findIndex((l) => l.id === id);
+		if (idx < 0 || idx >= layers.length - 1) return;
+		const upper = layers[idx];
+		const lower = layers[idx + 1];
+		// Merge upper onto lower
+		const merged = clonePixels(lower.pixels);
+		for (let y = 0; y < OLED_HEIGHT; y++) {
+			for (let x = 0; x < OLED_WIDTH; x++) {
+				if (getPixel(upper.pixels, x, y)) {
+					const bitIndex = y * OLED_WIDTH + x;
+					const byteIndex = bitIndex >> 3;
+					const bitOffset = 7 - (bitIndex & 7);
+					merged[byteIndex] |= 1 << bitOffset;
+				}
+			}
+		}
+		const updated = [...layers];
+		updated[idx + 1] = { ...lower, pixels: merged };
+		updated.splice(idx, 1);
+		layers = updated;
+		activeLayerId = lower.id;
+		addToast('Layers merged', 'info', 1500);
+	}
+
+	function handleLayerDuplicate(id: string) {
+		const src = layers.find((l) => l.id === id);
+		if (!src) return;
+		const idx = layers.indexOf(src);
+		const dup: OledLayer = {
+			id: crypto.randomUUID(),
+			label: `${src.label} Copy`,
+			pixels: clonePixels(src.pixels),
+			visible: true,
+			condition: src.condition ? { ...src.condition } : null
+		};
+		layers = [...layers.slice(0, idx + 1), dup, ...layers.slice(idx + 1)];
+		activeLayerId = dup.id;
+	}
+
+	function handleLayerConditionChange(id: string, condition: OledLayer['condition']) {
+		layers = layers.map((l) => (l.id === id ? { ...l, condition } : l));
+	}
+
 	// --- Keyboard shortcuts ---
 	function handleKeydown(e: KeyboardEvent) {
 		if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'SELECT') return;
@@ -331,10 +544,31 @@
 		} else if (e.ctrlKey && e.key === 'i') {
 			e.preventDefault();
 			handleInvert();
+		} else if (e.ctrlKey && e.key === 'c') {
+			if (tool === 'select' && selection.x >= 0) {
+				e.preventDefault();
+				handleSelectionCopy();
+			}
+		} else if (e.ctrlKey && e.key === 'v') {
+			if (clipboard) {
+				e.preventDefault();
+				handleSelectionPaste();
+			}
+		} else if (e.ctrlKey && e.key === 'a') {
+			e.preventDefault();
+			handleSelectionSelectAll();
 		} else if (e.key === 'Delete') {
-			handleClear();
+			if (tool === 'select' && selection.x >= 0) {
+				handleSelectionDelete();
+			} else {
+				handleClear();
+			}
+		} else if (e.key === 'Escape' && tool === 'select' && selection.x >= 0) {
+			e.preventDefault();
+			handleSelectionDeselect();
 		} else if (!e.ctrlKey && !e.altKey) {
 			switch (e.key.toLowerCase()) {
+				case 's': tool = 'select'; textState = { ...textState, originX: -1, originY: -1 }; break;
 				case 'p': tool = 'pen'; textState = { ...textState, originX: -1, originY: -1 }; break;
 				case 'e': tool = 'eraser'; textState = { ...textState, originX: -1, originY: -1 }; break;
 				case 'l': tool = 'line'; textState = { ...textState, originX: -1, originY: -1 }; break;
@@ -360,15 +594,56 @@
 	// --- Send back to flow editor ---
 	function handleSendToFlow() {
 		if (!flowTransfer) return;
-		const pixelData = pixelsToBase64(activeScene.pixels);
-		setFlowOledTransfer({
-			...flowTransfer,
-			scene: {
-				id: activeScene.id,
-				name: activeScene.name,
-				pixels: pixelData,
-			},
-		});
+
+		if (isAnimationMode) {
+			// Send all scenes back as animation frames
+			setFlowOledTransfer({
+				...flowTransfer,
+				animation: {
+					subNodeId: flowTransfer.animation!.subNodeId,
+					scenes: scenes.map((s) => ({
+						id: s.id,
+						name: s.name,
+						pixels: pixelsToBase64(s.pixels),
+					})),
+					frameDelayMs: animationConfig.frameDelayMs,
+					loop: animationConfig.loop,
+				},
+				scene: {
+					id: scenes[0]?.id || flowTransfer.scene.id,
+					name: scenes[0]?.name || flowTransfer.scene.name,
+					pixels: pixelsToBase64(scenes[0]?.pixels || createEmptyPixels()),
+				},
+			});
+		} else if (isLayerMode) {
+			// Send all layers back
+			setFlowOledTransfer({
+				...flowTransfer,
+				layers: layers.map((l) => ({
+					subNodeId: l.id,
+					label: l.label,
+					pixels: pixelsToBase64(l.pixels),
+					visible: l.visible,
+					condition: l.condition,
+				})),
+				// Also set the scene to the composited result for legacy compat
+				scene: {
+					id: flowTransfer.scene.id,
+					name: flowTransfer.scene.name,
+					pixels: pixelsToBase64(activePixels),
+				},
+			});
+		} else {
+			const pixelData = pixelsToBase64(activeScene.pixels);
+			setFlowOledTransfer({
+				...flowTransfer,
+				scene: {
+					id: activeScene.id,
+					name: activeScene.name,
+					pixels: pixelData,
+				},
+			});
+		}
 		goto(flowTransfer.returnPath ?? '/tools/flow');
 	}
 </script>
@@ -466,6 +741,9 @@
 
 		<div class="flex items-center gap-2 text-xs text-zinc-600">
 			<span>
+				<kbd class="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400">S</kbd> select
+			</span>
+			<span>
 				<kbd class="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400">P</kbd> pen
 			</span>
 			<span>
@@ -504,43 +782,69 @@
 				onInvert={handleInvert}
 				onShift={handleShift}
 				onImport={() => (showImport = true)}
+				onSelectionDelete={handleSelectionDelete}
+				onSelectionCopy={handleSelectionCopy}
+				onSelectionPaste={handleSelectionPaste}
+				onSelectionDeselect={handleSelectionDeselect}
+				onSelectionSelectAll={handleSelectionSelectAll}
+				{selection}
 			/>
 
-			<ScenePanel
-				{scenes}
-				{activeSceneId}
-				onSelect={(id) => (activeSceneId = id)}
-				onAdd={addScene}
-				onDuplicate={duplicateScene}
-				onDelete={deleteScene}
-				onRename={renameScene}
-				onReorder={reorderScene}
-			/>
+			{#if isLayerMode}
+				<LayerPanel
+					{layers}
+					{activeLayerId}
+					onSelect={(id) => (activeLayerId = id)}
+					onToggleVisibility={handleLayerToggleVisibility}
+					onAdd={handleLayerAdd}
+					onDelete={handleLayerDelete}
+					onRename={handleLayerRename}
+					onReorder={handleLayerReorder}
+					onMergeDown={handleLayerMergeDown}
+					onDuplicate={handleLayerDuplicate}
+					onConditionChange={handleLayerConditionChange}
+				/>
+			{:else}
+				<ScenePanel
+					{scenes}
+					{activeSceneId}
+					onSelect={(id) => (activeSceneId = id)}
+					onAdd={addScene}
+					onDuplicate={duplicateScene}
+					onDelete={deleteScene}
+					onRename={renameScene}
+					onReorder={reorderScene}
+				/>
 
-			<PreviewPanel
-				{scenes}
-				{activeSceneId}
-				animation={animationConfig}
-				onAnimationChange={(c) => (animationConfig = c)}
-			/>
+				<PreviewPanel
+					{scenes}
+					{activeSceneId}
+					animation={animationConfig}
+					onAnimationChange={(c) => (animationConfig = c)}
+				/>
+			{/if}
 		</div>
 
 		<!-- Main canvas area -->
 		<div class="relative flex flex-1 overflow-hidden">
 			<div class="flex-1">
 				<OledCanvas
-					pixels={activeScene.pixels}
+					pixels={activePixels}
 					{tool}
 					{brush}
 					filled={shapeFilled}
 					version={pixelVersion}
 					{textState}
 					{stampData}
-					overlayPixels={overlayPixelBuffers}
+					{selection}
+					{guides}
+					overlayPixels={layerOverlayPixels}
 					onBeforeDraw={handleBeforeDraw}
 					onDraw={handleDraw}
 					onTextOriginSet={handleTextOriginSet}
 					onStampPlaced={importStampActive ? handleImportStampPlaced : undefined}
+					onSelectionChange={handleSelectionChange}
+					onGuidesChange={handleGuidesChange}
 				/>
 
 				{#if importStampActive && importStampBase}
@@ -625,7 +929,7 @@
 
 <CodeRunnerModal
 	open={showCodeRunner}
-	currentPixels={activeScene.pixels}
+	currentPixels={activePixels}
 	onApply={(pixels) => {
 		handleBeforeDraw();
 		handleDraw(pixels);

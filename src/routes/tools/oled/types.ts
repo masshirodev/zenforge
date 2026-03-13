@@ -8,7 +8,7 @@ export interface OledScene {
 	pixels: Uint8Array; // 1024 bytes = 128x64 bits, row-major, MSB first
 }
 
-export type DrawTool = 'pen' | 'eraser' | 'line' | 'rect' | 'ellipse' | 'fill' | 'text' | 'move';
+export type DrawTool = 'pen' | 'eraser' | 'line' | 'rect' | 'ellipse' | 'fill' | 'text' | 'move' | 'select';
 
 export type FontSize = '3x5' | '5x7' | '8x8';
 
@@ -36,6 +36,38 @@ export interface ToolState {
 export interface AnimationConfig {
 	frameDelayMs: number;
 	loop: boolean;
+}
+
+export interface SelectionState {
+	/** Selection rectangle bounds (-1 = no selection) */
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	/** Floating pixels that have been "picked up" for moving */
+	floating: Uint8Array | null;
+	/** Offset of floating selection from its original position */
+	floatingX: number;
+	floatingY: number;
+	/** Whether we're currently dragging the selection to move it */
+	isDragging: boolean;
+}
+
+export interface Guide {
+	position: number; // pixel position (0-127 for vertical, 0-63 for horizontal)
+	axis: 'h' | 'v'; // h = horizontal line, v = vertical line
+}
+
+export interface OledLayer {
+	id: string; // matches the subNodeId from the flow editor
+	label: string;
+	pixels: Uint8Array;
+	visible: boolean;
+	condition?: {
+		variable?: string;
+		operator?: string;
+		value?: string;
+	} | null;
 }
 
 export type ExportFormat = 'pixel_calls' | 'array_8bit' | 'array_16bit';

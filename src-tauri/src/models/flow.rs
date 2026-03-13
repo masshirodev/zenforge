@@ -64,6 +64,9 @@ pub struct FlowGraph {
     pub created_at: u64,
     #[serde(default)]
     pub updated_at: u64,
+    /// Module IDs whose auto-generated menu nodes the user intentionally deleted
+    #[serde(default)]
+    pub suppressed_module_menus: Option<Vec<String>>,
 }
 
 /// A node in the flow graph representing a state/screen
@@ -293,7 +296,7 @@ fn default_port() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlowCondition {
-    pub r#type: String, // button_press, button_hold, timeout, variable, custom
+    pub r#type: String, // button_press, button_hold, timeout, variable, custom, animation_end
     #[serde(default)]
     pub button: Option<String>,
     #[serde(default)]
@@ -308,6 +311,12 @@ pub struct FlowCondition {
     pub value: Option<i32>,
     #[serde(default)]
     pub custom_code: Option<String>,
+    /// Delay in ms after animation ends before transitioning (for animation_end)
+    #[serde(default)]
+    pub delay_ms: Option<u32>,
+    /// Sub-node ID of the animation sub-node to watch (for animation_end)
+    #[serde(default)]
+    pub animation_sub_node_id: Option<String>,
 }
 
 /// A variable used in the flow
@@ -367,7 +376,7 @@ pub struct SubNodeCondition {
 #[serde(rename_all = "camelCase")]
 pub struct SubNode {
     pub id: String,
-    pub r#type: String, // header, menu-item, toggle-item, value-item, scroll-bar, text-line, bar, indicator, pixel-art, separator, custom
+    pub r#type: String, // header, menu-item, toggle-item, value-item, scroll-bar, text-line, bar, indicator, pixel-art, animation, separator, custom
     #[serde(default)]
     pub label: String,
     #[serde(default = "default_stack")]
@@ -397,6 +406,9 @@ pub struct SubNode {
     /// Visual grouping label for organizing sub-nodes (no code generation impact)
     #[serde(default)]
     pub group: Option<String>,
+    /// When true, this sub-node is hidden from preview and skipped in code generation
+    #[serde(default)]
+    pub hidden: Option<bool>,
 }
 
 fn default_stack() -> String {

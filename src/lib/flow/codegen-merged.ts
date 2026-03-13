@@ -56,10 +56,16 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 		return { code: '// Empty flow project — add nodes to generate code\n', extraFiles: {} };
 	}
 
+	// Collect all module nodes across all flows for cross-flow checks (e.g. recoiltable)
+	const allFlowModuleNodes = [
+		...(gameplayFlow?.nodes ?? []),
+		...(dataFlow?.nodes ?? []),
+	].filter((n) => n.type === 'module' && n.moduleData);
+
 	// Both flows have content — merge them
 	// Skip persistence in menu codegen — we generate combined persistence below
-	const dataResult = hasData ? generateGameplayGpc(dataFlow!) : null;
-	const gameplayResult = generateGameplayGpc(gameplayFlow!);
+	const dataResult = hasData ? generateGameplayGpc(dataFlow!, allFlowModuleNodes) : null;
+	const gameplayResult = generateGameplayGpc(gameplayFlow!, allFlowModuleNodes);
 	const menuCode = generateFlowGpc(menuFlow!, profileCount, { skipPersistence: true });
 
 	// Collect combined persist vars from all sources

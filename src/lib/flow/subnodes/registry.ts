@@ -13,6 +13,7 @@ import { separatorDef } from './defs/separator';
 import { blankDef } from './defs/blank';
 import { customDef } from './defs/custom';
 import { executableItemDef } from './defs/executable-item';
+import { animationDef } from './defs/animation';
 
 const ALL_SUBNODE_DEFS: SubNodeDef[] = [
 	headerDef,
@@ -26,6 +27,7 @@ const ALL_SUBNODE_DEFS: SubNodeDef[] = [
 	barDef,
 	indicatorDef,
 	pixelArtDef,
+	animationDef,
 	separatorDef,
 	blankDef,
 	customDef,

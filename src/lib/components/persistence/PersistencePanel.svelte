@@ -396,7 +396,7 @@
                 <div class="group/cap relative mb-4">
                     <div class="mb-1 flex items-center justify-between text-xs">
                         <span class="text-zinc-400">
-                            {effectiveTotalBits} bits ({effectiveSlotsUsed} / {layout.maxSlots} slots)
+                            {effectiveTotalBits} <span class="text-zinc-600">/ {layout.maxSlots * 32}</span> bits ({effectiveSlotsUsed} <span class="text-zinc-600">/ {layout.maxSlots}</span> slots)
                         </span>
                         <span
                             class:text-emerald-400={capacityPercent < 60}

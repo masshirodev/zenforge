@@ -39,6 +39,7 @@
 		selectedEdge: FlowEdge | null;
 		selectedSubNode: SubNode | null;
 		allModuleNodes?: FlowNode[];
+		allNodes?: FlowNode[];
 		sharedVariables?: FlowVariable[];
 		gameplayModuleNodes?: FlowNode[];
 		onUpdateNode: (nodeId: string, updates: Partial<FlowNode>) => void;
@@ -63,6 +64,7 @@
 		selectedEdge,
 		selectedSubNode,
 		allModuleNodes = [],
+		allNodes = [],
 		sharedVariables = [],
 		gameplayModuleNodes = [],
 		onUpdateNode,
@@ -106,6 +108,7 @@
 		{ value: 'timeout', label: 'Timeout' },
 		{ value: 'variable', label: 'Variable' },
 		{ value: 'custom', label: 'Custom Code' },
+		{ value: 'animation_end', label: 'Animation End' },
 	];
 
 	let codeTab = $state<'gpc' | 'enter' | 'exit' | 'init' | 'combo'>('gpc');
@@ -228,6 +231,7 @@
 			// If switching from one node to another, flush the old one
 			if (lastSyncedNodeId) flushNodeEdits(lastSyncedNodeId);
 			lastSyncedNodeId = selectedNode.id;
+			emptyGroups = [];
 			editLabel = syncedLabel = selectedNode.label;
 			editGpcCode = syncedGpcCode = selectedNode.gpcCode;
 			editOnEnter = syncedOnEnter = selectedNode.onEnter;
@@ -416,6 +420,8 @@
 	let editEdgeComparison = $state('==');
 	let editEdgeValue = $state(0);
 	let editEdgeModifiers = $state<string[]>([]);
+	let editEdgeDelayMs = $state(0);
+	let editEdgeAnimSubNodeId = $state('');
 
 	let lastSyncedEdgeKey = '';
 	let lastSyncedEdgeId = '';
@@ -433,6 +439,8 @@
 				variable: editEdgeVariable || undefined,
 				comparison: (editEdgeComparison as FlowEdge['condition']['comparison']) || undefined,
 				value: editEdgeValue,
+				delayMs: editEdgeDelayMs || undefined,
+				animationSubNodeId: editEdgeAnimSubNodeId || undefined,
 			},
 		});
 	}
@@ -454,12 +462,22 @@
 				editEdgeVariable = selectedEdge.condition.variable || '';
 				editEdgeComparison = selectedEdge.condition.comparison || '==';
 				editEdgeValue = selectedEdge.condition.value ?? 0;
+				editEdgeDelayMs = selectedEdge.condition.delayMs ?? 0;
+				editEdgeAnimSubNodeId = selectedEdge.condition.animationSubNodeId || '';
 			}
 		} else if (lastSyncedEdgeId) {
 			flushEdgeEdits(lastSyncedEdgeId);
 			lastSyncedEdgeKey = '';
 			lastSyncedEdgeId = '';
 		}
+	});
+
+	// Animation subnodes from the edge's source node (for animation_end condition)
+	let edgeSourceAnimationSubs = $derived.by(() => {
+		if (!selectedEdge) return [];
+		const sourceNode = allNodes.find((n) => n.id === selectedEdge.sourceNodeId);
+		if (!sourceNode) return [];
+		return sourceNode.subNodes.filter((s) => s.type === 'animation');
 	});
 
 	// Derived
@@ -474,6 +492,7 @@
 	);
 	let subNodeCategories = $derived(listSubNodeCategories());
 	let collapsedGroups = $state<Set<string>>(new Set());
+	let emptyGroups = $state<string[]>([]);
 	let editingGroupName = $state<string | null>(null);
 	let editGroupInput = $state('');
 
@@ -487,6 +506,7 @@
 	function setSubNodeGroup(subNodeId: string, group: string | undefined) {
 		if (!selectedNode) return;
 		onUpdateSubNode(selectedNode.id, subNodeId, { group });
+		if (group) emptyGroups = emptyGroups.filter(g => g !== group);
 	}
 
 	function renameGroup(oldName: string, newName: string) {
@@ -496,6 +516,7 @@
 				onUpdateSubNode(selectedNode.id, sub.id, { group: newName.trim() });
 			}
 		}
+		emptyGroups = emptyGroups.map(g => g === oldName ? newName.trim() : g);
 		editingGroupName = null;
 	}
 
@@ -506,15 +527,22 @@
 				onUpdateSubNode(selectedNode.id, sub.id, { group: undefined });
 			}
 		}
+		emptyGroups = emptyGroups.filter(g => g !== groupName);
 	}
 
-	/** Get unique groups from subnodes, preserving order */
+	/** Get unique groups from subnodes + empty groups, preserving order */
 	let subNodeGroups = $derived.by(() => {
 		const groups: string[] = [];
 		const seen = new Set<string>();
 		for (const sub of sortedSubNodes) {
 			const g = sub.group;
 			if (g && !seen.has(g)) {
+				groups.push(g);
+				seen.add(g);
+			}
+		}
+		for (const g of emptyGroups) {
+			if (!seen.has(g)) {
 				groups.push(g);
 				seen.add(g);
 			}
@@ -668,6 +696,8 @@
 				variable: editEdgeVariable || undefined,
 				comparison: (editEdgeComparison as FlowEdge['condition']['comparison']) || undefined,
 				value: editEdgeValue,
+				delayMs: ctype === 'animation_end' ? (editEdgeDelayMs || undefined) : undefined,
+				animationSubNodeId: ctype === 'animation_end' ? (editEdgeAnimSubNodeId || undefined) : undefined,
 			},
 		});
 	}
@@ -780,17 +810,17 @@
 	function handleSubNodeDrop(e: DragEvent, toIdx: number) {
 		e.preventDefault();
 		if (dragSubNodeIdx !== null && dragSubNodeIdx !== toIdx && selectedNode) {
+			// If target subnode has a group, assign the dragged subnode to that group
+			const targetSub = sortedSubNodes[toIdx];
+			const draggedSub = sortedSubNodes[dragSubNodeIdx];
+			if (targetSub?.group && draggedSub?.group !== targetSub.group) {
+				setSubNodeGroup(draggedSub.id, targetSub.group);
+			}
 			// If dropping before and the source is above, adjust target
 			const adjustedIdx = dragDropPosition === 'before' && dragSubNodeIdx < toIdx ? toIdx - 1 :
 				dragDropPosition === 'after' && dragSubNodeIdx > toIdx ? toIdx + 1 : toIdx;
 			const clampedIdx = Math.max(0, Math.min(sortedSubNodes.length - 1, adjustedIdx));
 			if (clampedIdx !== dragSubNodeIdx) {
-				// If target subnode has a group, assign the dragged subnode to that group
-				const targetSub = sortedSubNodes[toIdx];
-				const draggedSub = sortedSubNodes[dragSubNodeIdx];
-				if (targetSub?.group && draggedSub?.group !== targetSub.group) {
-					onUpdateSubNode(selectedNode.id, draggedSub.id, { group: targetSub.group });
-				}
 				onReorderSubNodes(selectedNode.id, dragSubNodeIdx, clampedIdx);
 			}
 		}
@@ -963,6 +993,24 @@
 				{/if}
 			{/if}
 
+			<!-- Animation: Edit button + frame count -->
+			{#if selectedSubNode.type === 'animation'}
+				{@const animScenes = selectedSubNode.config.scenes as unknown[]}
+				<div class="mb-3">
+					<button
+						class="w-full rounded border border-blue-800 bg-blue-950 px-2 py-1.5 text-xs text-blue-300 hover:bg-blue-900"
+						onclick={() => onEditOled(selectedNode!.id)}
+					>
+						Edit Animation in OLED Editor
+					</button>
+					{#if Array.isArray(animScenes) && animScenes.length > 0}
+						<p class="mt-1.5 text-[10px] text-zinc-500">{animScenes.length} frame{animScenes.length > 1 ? 's' : ''}</p>
+					{:else}
+						<p class="mt-1.5 text-[10px] text-zinc-500">No frames yet</p>
+					{/if}
+				</div>
+			{/if}
+
 			<!-- Position mode -->
 			<div class="mb-3">
 				<label class="mb-1 block text-xs text-zinc-400">Position</label>
@@ -1065,6 +1113,28 @@
 					</div>
 				</div>
 			{/if}
+
+			<!-- Hidden toggle -->
+			<div class="mb-3">
+				<label class="mb-1 flex items-center gap-2 text-xs text-zinc-400">
+					<input
+						type="checkbox"
+						class="accent-zinc-500"
+						checked={!!selectedSubNode.hidden}
+						onchange={(e) => {
+							onUpdateSubNode(selectedNode!.id, selectedSubNode!.id, {
+								hidden: (e.target as HTMLInputElement).checked || undefined
+							});
+						}}
+					/>
+					Hidden
+				</label>
+				{#if selectedSubNode.hidden}
+					<p class="mt-1 text-[10px] text-zinc-600">
+						Skipped in code generation and OLED preview
+					</p>
+				{/if}
+			</div>
 
 			<!-- Conditional rendering -->
 			<div class="mb-3">
@@ -1973,12 +2043,20 @@
 							/>
 						</div>
 					{/if}
-					<button
-						class="mt-1.5 w-full rounded bg-zinc-700 px-2 py-1.5 text-[11px] font-medium text-zinc-200 hover:bg-zinc-600"
-						onclick={() => (showLayoutBuilder = true)}
-					>
-						Open Layout Builder
-					</button>
+					<div class="mt-1.5 flex gap-1">
+						<button
+							class="flex-1 rounded bg-zinc-700 px-2 py-1.5 text-[11px] font-medium text-zinc-200 hover:bg-zinc-600"
+							onclick={() => (showLayoutBuilder = true)}
+						>
+							Layout Builder
+						</button>
+						<button
+							class="flex-1 rounded border border-blue-800 bg-blue-950 px-2 py-1.5 text-[11px] font-medium text-blue-300 hover:bg-blue-900"
+							onclick={() => onEditOled(selectedNode!.id)}
+						>
+							OLED Editor
+						</button>
+					</div>
 				</div>
 			{:else if oledPreview}
 				<div class="mb-3 rounded border border-zinc-800 bg-zinc-950 p-2">
@@ -1990,6 +2068,12 @@
 						style="image-rendering: pixelated;"
 					/>
 				</div>
+				<button
+					class="mb-3 w-full rounded border border-blue-800 bg-blue-950 px-2 py-1.5 text-xs text-blue-300 hover:bg-blue-900"
+					onclick={() => onEditOled(selectedNode!.id)}
+				>
+					Edit in OLED Editor
+				</button>
 			{/if}
 
 			<!-- Label -->
@@ -2045,10 +2129,7 @@
 								title={m.flow_add_group()}
 								onclick={() => {
 									const name = `${m.flow_subnode_group()} ${subNodeGroups.length + 1}`;
-									for (const sub of sortedSubNodes.filter(s => !s.group)) {
-										setSubNodeGroup(sub.id, name);
-										break;
-									}
+									emptyGroups = [...emptyGroups, name];
 								}}
 							>
 								+ {m.flow_subnode_group()}
@@ -2166,13 +2247,27 @@
 														<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
 													</button>
 												</div>
-												<button class="flex-1 truncate text-left text-xs text-zinc-300 hover:text-zinc-100" onclick={() => onSelectSubNode(selectedNode!.id, subNode.id)}>
+												<button class="flex-1 truncate text-left text-xs {subNode.hidden ? 'text-zinc-600 line-through' : 'text-zinc-300'} hover:text-zinc-100" onclick={() => onSelectSubNode(selectedNode!.id, subNode.id)}>
 													<span class="mr-1 text-zinc-500">{def?.name || subNode.type}</span>
 													{subNode.label}
 												</button>
+												{#if subNode.hidden}
+													<span class="rounded bg-zinc-700/50 px-1 text-[9px] text-zinc-500">HID</span>
+												{/if}
 												{#if subNode.interactive}
 													<span class="rounded bg-purple-900/50 px-1 text-[9px] text-purple-400">INT</span>
 												{/if}
+												<button
+													class="text-zinc-600 hover:text-zinc-300"
+													title={subNode.hidden ? 'Show sub-node' : 'Hide sub-node'}
+													onclick={(e) => { e.stopPropagation(); onUpdateSubNode(selectedNode!.id, subNode.id, { hidden: !subNode.hidden }); }}
+												>
+													{#if subNode.hidden}
+														<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" /></svg>
+													{:else}
+														<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+													{/if}
+												</button>
 												<button class="text-zinc-600 hover:text-red-400" onclick={() => onRemoveSubNode(selectedNode!.id, subNode.id)}>
 													<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
 												</button>
@@ -2214,13 +2309,27 @@
 										<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
 									</button>
 								</div>
-								<button class="flex-1 truncate text-left text-xs text-zinc-300 hover:text-zinc-100" onclick={() => onSelectSubNode(selectedNode!.id, subNode.id)}>
+								<button class="flex-1 truncate text-left text-xs {subNode.hidden ? 'text-zinc-600 line-through' : 'text-zinc-300'} hover:text-zinc-100" onclick={() => onSelectSubNode(selectedNode!.id, subNode.id)}>
 									<span class="mr-1 text-zinc-500">{def?.name || subNode.type}</span>
 									{subNode.label}
 								</button>
+								{#if subNode.hidden}
+									<span class="rounded bg-zinc-700/50 px-1 text-[9px] text-zinc-500">HID</span>
+								{/if}
 								{#if subNode.interactive}
 									<span class="rounded bg-purple-900/50 px-1 text-[9px] text-purple-400">INT</span>
 								{/if}
+								<button
+									class="text-zinc-600 hover:text-zinc-300"
+									title={subNode.hidden ? 'Show sub-node' : 'Hide sub-node'}
+									onclick={(e) => { e.stopPropagation(); onUpdateSubNode(selectedNode!.id, subNode.id, { hidden: !subNode.hidden }); }}
+								>
+									{#if subNode.hidden}
+										<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" /></svg>
+									{:else}
+										<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+									{/if}
+								</button>
 								<button class="text-zinc-600 hover:text-red-400" onclick={() => onRemoveSubNode(selectedNode!.id, subNode.id)}>
 									<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
 								</button>
@@ -2560,6 +2669,9 @@
 						if ((newType === 'button_hold' || newType === 'timeout') && !cond.timeoutMs) {
 							cond.timeoutMs = 3000;
 						}
+						if (newType === 'animation_end' && !cond.animationSubNodeId && edgeSourceAnimationSubs.length > 0) {
+							cond.animationSubNodeId = edgeSourceAnimationSubs[0].id;
+						}
 						onUpdateEdge(selectedEdge!.id, { condition: cond });
 					}}
 				>
@@ -2681,6 +2793,36 @@
 							onchange={(v) => { editEdgeCustomCode = v; commitEdge(); }}
 						/>
 					</div>
+				</div>
+			{:else if selectedEdge.condition.type === 'animation_end'}
+				<div class="mb-3">
+					<label class="mb-1 block text-xs text-zinc-400">Animation Sub-Node</label>
+					{#if edgeSourceAnimationSubs.length > 0}
+						<select
+							class="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none"
+							bind:value={editEdgeAnimSubNodeId}
+							onchange={commitEdge}
+						>
+							{#each edgeSourceAnimationSubs as sub}
+								<option value={sub.id}>{sub.label || 'Animation'}</option>
+							{/each}
+						</select>
+					{:else}
+						<p class="text-xs text-zinc-500">No animation sub-nodes on source node. Add an Animation sub-node first.</p>
+					{/if}
+				</div>
+				<div class="mb-3">
+					<label class="mb-1 block text-xs text-zinc-400" for="edge-anim-delay">Delay After End (ms)</label>
+					<input
+						id="edge-anim-delay"
+						type="number"
+						class="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none"
+						bind:value={editEdgeDelayMs}
+						onblur={commitEdge}
+						placeholder="0"
+						min="0"
+					/>
+					<p class="mt-1 text-[10px] text-zinc-600">Delay after the animation finishes before transitioning. 0 = immediate.</p>
 				</div>
 			{/if}
 

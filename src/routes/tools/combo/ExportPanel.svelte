@@ -7,6 +7,7 @@
 	import { getSettings } from '$lib/stores/settings.svelte';
 	import { getGameStore } from '$lib/stores/game.svelte';
 	import { setComboTransfer } from '$lib/stores/combo-transfer.svelte';
+	import { getProjectCombos } from './export';
 	import { goto } from '$app/navigation';
 	import {
 		CONSOLE_TYPES,
@@ -43,6 +44,7 @@
 		triggerMode
 	});
 
+	let splitPerNode = $state(false);
 	let hasMultipleCombos = $derived((project.combos?.length ?? 0) > 1);
 	let gpcOutput = $derived(hasMultipleCombos ? exportAllCombosGPC(project, exportConsole) : exportComboGPC(project, exportConsole));
 	let tomlOutput = $derived(exportModuleTOML(project, moduleConfig));
@@ -69,13 +71,32 @@
 			addToast('No game selected. Select a game in the sidebar first.', 'error');
 			return;
 		}
-		const code = hasMultipleCombos ? exportAllCombosGPC(project, exportConsole) : exportComboGPC(project, exportConsole);
+		const combos = getProjectCombos(project);
+		const allCode = hasMultipleCombos ? exportAllCombosGPC(project, exportConsole) : exportComboGPC(project, exportConsole);
 		const name = project.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'combo';
-		setComboTransfer({
-			comboName: name,
-			gpcCode: code,
-			returnTo: gameStore.selectedGame.path
-		});
+
+		if (hasMultipleCombos && splitPerNode) {
+			// One node per combo
+			setComboTransfer({
+				comboName: name,
+				gpcCode: allCode,
+				returnTo: gameStore.selectedGame.path,
+				createNodes: true,
+				nodeEntries: combos.map(c => ({
+					name: c.name,
+					gpcCode: exportComboGPC({ ...project, name: c.name, steps: c.steps }, exportConsole),
+				})),
+			});
+		} else {
+			// Single node with all combos
+			setComboTransfer({
+				comboName: name,
+				gpcCode: allCode,
+				returnTo: gameStore.selectedGame.path,
+				createNodes: true,
+				nodeEntries: [{ name: project.name || 'Combo', gpcCode: allCode }],
+			});
+		}
 		goto('/');
 	}
 
@@ -156,7 +177,7 @@
 				: 'text-zinc-500 hover:text-zinc-300'}"
 			onclick={() => (tab = 'toml')}
 		>
-			Module TOML
+			Node
 		</button>
 	</div>
 
@@ -235,6 +256,12 @@
 	>
 		Send to Game
 	</button>
+	{#if hasMultipleCombos}
+		<label class="flex items-center gap-2 text-xs text-zinc-400">
+			<input type="checkbox" bind:checked={splitPerNode} class="accent-emerald-500" />
+			Separate node per combo
+		</label>
+	{/if}
 	{#if gameStore.selectedGame}
 		<div class="truncate text-xs text-zinc-600" title={gameStore.selectedGame.name}>
 			Game: {gameStore.selectedGame.name}

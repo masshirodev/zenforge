@@ -106,13 +106,14 @@ export function createModuleNode(
 	// Module options are auto-persisted so user settings survive reboot
 	for (const opt of options) {
 		if (!seenVars.has(opt.variable)) {
+			const isToggle = opt.type === 'toggle';
 			vars.push({
 				name: opt.variable,
 				type: 'int' as const,
 				defaultValue: opt.defaultValue,
 				persist: true,
-				min: opt.min,
-				max: opt.max,
+				min: isToggle ? 0 : opt.min,
+				max: isToggle ? 1 : opt.max,
 			});
 			seenVars.add(opt.variable);
 		}

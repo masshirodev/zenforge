@@ -18,6 +18,7 @@
 		expanded: boolean;
 		selectedSubNodeId: string | null;
 		hasConflict?: boolean;
+		isDuplicate?: boolean;
 		onSelect: (nodeId: string) => void;
 		onSelectSubNode: (nodeId: string, subNodeId: string) => void;
 		onStartConnect: (nodeId: string, port: string, e: MouseEvent, subNodeId?: string) => void;
@@ -31,6 +32,7 @@
 		expanded,
 		selectedSubNodeId,
 		hasConflict = false,
+		isDuplicate = false,
 		onSelect,
 		onSelectSubNode,
 		onStartConnect,
@@ -68,6 +70,7 @@
 		bar: 'B',
 		indicator: 'I',
 		'pixel-art': 'P',
+		animation: 'A',
 		separator: '—',
 		custom: '*',
 	};
@@ -93,8 +96,9 @@
 		{height}
 		rx="6"
 		fill="#18181b"
-		stroke={selected ? '#f59e0b' : hasConflict ? '#f97316' : color}
-		stroke-width={selected ? 2.5 : hasConflict ? 2 : 1.5}
+		stroke={selected ? '#f59e0b' : hasConflict ? '#f97316' : isDuplicate ? '#facc15' : color}
+		stroke-width={selected ? 2.5 : hasConflict ? 2 : isDuplicate ? 2 : 1.5}
+		stroke-dasharray={isDuplicate && !selected && !hasConflict ? '6 3' : 'none'}
 	/>
 
 	<!-- Header bar -->
@@ -142,6 +146,20 @@
 	>
 		{NODE_LABELS[node.type]}
 	</text>
+
+	<!-- Duplicate module badge -->
+	{#if isDuplicate}
+		<rect x={NODE_WIDTH - 28} y="2" width="24" height="12" rx="3" fill="#854d0e" />
+		<text
+			x={NODE_WIDTH - 16}
+			y="9"
+			fill="#facc15"
+			font-size="8"
+			font-weight="700"
+			text-anchor="middle"
+			style="pointer-events: none; user-select: none;"
+		>DUP</text>
+	{/if}
 
 	{#if isModule}
 		<!-- Module node body -->
@@ -195,6 +213,8 @@
 		{#each sortedSubNodes.slice(0, visibleCount) as subNode, i (subNode.id)}
 			{@const rowY = HEADER_HEIGHT + i * SUBNODE_ROW_HEIGHT}
 			{@const isSubSelected = selectedSubNodeId === subNode.id}
+			{@const prevGroup = i > 0 ? sortedSubNodes[i - 1]?.group : undefined}
+			{@const isNewGroup = !!subNode.group && subNode.group !== prevGroup}
 			<!-- Row background (clickable) -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<rect
@@ -210,15 +230,50 @@
 				}}
 			/>
 
-			<!-- Separator line between rows -->
+			<!-- Separator line between rows / group label -->
 			{#if i > 0}
-				<line
-					x1="8"
-					y1={rowY}
-					x2={NODE_WIDTH - 8}
-					y2={rowY}
-					stroke="#27272a"
-					stroke-width="0.5"
+				{#if isNewGroup}
+					<line
+						x1="4"
+						y1={rowY}
+						x2={NODE_WIDTH - 4}
+						y2={rowY}
+						stroke="#3f3f46"
+						stroke-width="1"
+					/>
+					<text
+						x={NODE_WIDTH / 2}
+						y={rowY}
+						text-anchor="middle"
+						fill="#71717a"
+						font-size="7"
+						dominant-baseline="middle"
+						style="pointer-events: none; user-select: none;"
+					>
+						{subNode.group}
+					</text>
+				{:else}
+					<line
+						x1="8"
+						y1={rowY}
+						x2={NODE_WIDTH - 8}
+						y2={rowY}
+						stroke="#27272a"
+						stroke-width="0.5"
+					/>
+				{/if}
+			{/if}
+
+			<!-- Group indicator bar -->
+			{#if subNode.group}
+				<rect
+					x="2"
+					y={rowY + 2}
+					width="2"
+					height={SUBNODE_ROW_HEIGHT - 4}
+					rx="1"
+					fill="#3f3f46"
+					style="pointer-events: none;"
 				/>
 			{/if}
 
@@ -229,14 +284,14 @@
 				width="16"
 				height="16"
 				rx="3"
-				fill={subNode.interactive ? '#3b2f6b' : '#1f2937'}
+				fill={subNode.hidden ? '#1a1a1e' : subNode.interactive ? '#3b2f6b' : '#1f2937'}
 				style="pointer-events: none;"
 			/>
 			<text
 				x="16"
 				y={rowY + SUBNODE_ROW_HEIGHT / 2 + 1}
 				text-anchor="middle"
-				fill={subNode.interactive ? '#a78bfa' : '#6b7280'}
+				fill={subNode.hidden ? '#3f3f46' : subNode.interactive ? '#a78bfa' : '#6b7280'}
 				font-size="8"
 				font-weight="600"
 				dominant-baseline="middle"
@@ -249,13 +304,27 @@
 			<text
 				x="30"
 				y={rowY + SUBNODE_ROW_HEIGHT / 2 + 1}
-				fill={isSubSelected ? '#fbbf24' : '#d4d4d8'}
+				fill={subNode.hidden ? '#3f3f46' : isSubSelected ? '#fbbf24' : '#d4d4d8'}
 				font-size="10"
 				dominant-baseline="middle"
 				style="pointer-events: none; user-select: none;"
+				text-decoration={subNode.hidden ? 'line-through' : 'none'}
 			>
 				{subNode.label.length > 22 ? subNode.label.slice(0, 20) + '...' : subNode.label}
 			</text>
+
+			<!-- Hidden indicator -->
+			{#if subNode.hidden}
+				<text
+					x={NODE_WIDTH - 14}
+					y={rowY + SUBNODE_ROW_HEIGHT / 2 + 1}
+					text-anchor="end"
+					fill="#52525b"
+					font-size="7"
+					dominant-baseline="middle"
+					style="pointer-events: none; user-select: none;"
+				>HID</text>
+			{/if}
 
 			<!-- Output port for sub-node (right side) -->
 			<circle

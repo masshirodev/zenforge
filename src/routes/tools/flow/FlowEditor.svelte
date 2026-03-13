@@ -68,12 +68,12 @@
 	import { generateMergedFlowGpc } from '$lib/flow/codegen-merged';
 	import { mergeRecoilTable, parseWeaponNames } from '$lib/utils/recoil-parser';
 	import { createModuleNode } from '$lib/flow/module-nodes';
-	import { getFlowOledTransfer, setFlowOledTransfer, clearFlowOledTransfer } from '$lib/stores/flow-transfer.svelte';
+	import { getFlowOledTransfer, setFlowOledTransfer, clearFlowOledTransfer, type FlowOledLayer } from '$lib/stores/flow-transfer.svelte';
 	import { getKeyboardTransfer, clearKeyboardTransfer } from '$lib/stores/keyboard-transfer.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, untrack } from 'svelte';
-	import type { FlowNodeType, FlowChunk, FlowType, ModuleNodeData } from '$lib/types/flow';
+	import type { FlowNodeType, FlowChunk, FlowType, ModuleNodeData, SubNodeCondition } from '$lib/types/flow';
 	import { createFlowNode } from '$lib/types/flow';
 	import type { ModuleSummary } from '$lib/types/module';
 
@@ -189,7 +189,46 @@
 			if (transfer) {
 				const node = graph.nodes.find((n) => n.id === transfer.nodeId);
 				if (node) {
-					if (transfer.subNodeId) {
+					if (transfer.animation) {
+						// Animation mode: update the animation subnode with scenes + config
+						const sub = node.subNodes.find((s) => s.id === transfer.animation!.subNodeId);
+						if (sub && sub.type === 'animation') {
+							updateSubNode(node.id, sub.id, {
+								config: {
+									...sub.config,
+									scenes: transfer.animation.scenes,
+									frameDelayMs: transfer.animation.frameDelayMs,
+									loop: transfer.animation.loop,
+								},
+							});
+							addToast(`Animation updated (${transfer.animation.scenes.length} frames)`, 'success');
+						}
+					} else if (transfer.layers && transfer.layers.length > 0) {
+						// Layer mode: update all pixel-art subnodes from layers
+						let updated = 0;
+						for (const layer of transfer.layers) {
+							const sub = node.subNodes.find((s) => s.id === layer.subNodeId);
+							if (sub && sub.type === 'pixel-art') {
+								const condition: SubNodeCondition | undefined = layer.condition?.variable
+									? {
+										variable: layer.condition.variable,
+										comparison: (layer.condition.operator ?? '==') as SubNodeCondition['comparison'],
+										value: Number(layer.condition.value ?? 0),
+									}
+									: undefined;
+								updateSubNode(node.id, sub.id, {
+									label: layer.label,
+									config: { ...sub.config, scene: { id: sub.id, name: layer.label, pixels: layer.pixels } },
+									condition,
+									hidden: !layer.visible || undefined,
+								});
+								updated++;
+							}
+						}
+						if (updated > 0) {
+							addToast(`${updated} pixel art layer${updated > 1 ? 's' : ''} updated from OLED editor`, 'success');
+						}
+					} else if (transfer.subNodeId) {
 						const sub = node.subNodes.find((s) => s.id === transfer.subNodeId);
 						if (sub && sub.type === 'pixel-art') {
 							updateSubNode(node.id, sub.id, {
@@ -447,37 +486,94 @@
 		const node = flowStore.graph?.nodes.find((n) => n.id === nodeId);
 		if (!node) return;
 
+		// Check if an animation sub-node is selected — open in animation mode
+		const animSubNode = selectedSubNode?.type === 'animation' ? selectedSubNode : null;
+		if (animSubNode) {
+			const scenes = (animSubNode.config.scenes as { id?: string; name?: string; pixels?: string }[]) || [];
+			const emptyPixels = btoa(String.fromCharCode(...new Uint8Array(1024)));
+			const serializedScenes = scenes.map((s, i) => ({
+				id: s.id || crypto.randomUUID(),
+				name: s.name || `Frame ${i + 1}`,
+				pixels: s.pixels || emptyPixels,
+			}));
+
+			setFlowOledTransfer({
+				nodeId,
+				subNodeId: animSubNode.id,
+				scene: serializedScenes[0] || {
+					id: crypto.randomUUID(),
+					name: animSubNode.label || 'Animation',
+					pixels: emptyPixels,
+				},
+				returnTo: flowStore.gamePath,
+				returnPath: page.url.pathname,
+				animation: {
+					subNodeId: animSubNode.id,
+					scenes: serializedScenes,
+					frameDelayMs: (animSubNode.config.frameDelayMs as number) || 100,
+					loop: animSubNode.config.loop !== false,
+				},
+			});
+			goto('/tools/oled');
+			return;
+		}
+
 		// Check if a pixel-art sub-node is selected — use its scene data
 		const pixelSubNode = selectedSubNode?.type === 'pixel-art' ? selectedSubNode : null;
 		const sceneData = pixelSubNode
 			? (pixelSubNode.config.scene as { id?: string; name?: string; pixels: string } | null)
 			: null;
 
-		// Collect other pixel-art subnodes' pixels for overlay preview
-		const overlayPixels: string[] = [];
-		if (pixelSubNode) {
-			for (const sub of node.subNodes) {
-				if (sub.type === 'pixel-art' && sub.id !== pixelSubNode.id) {
-					const scene = sub.config.scene as { pixels?: string } | null;
-					if (scene?.pixels) overlayPixels.push(scene.pixels);
-				}
-			}
-		}
+		// Collect ALL pixel-art subnodes for layer mode
+		const pixelArtSubs = node.subNodes.filter((s) => s.type === 'pixel-art');
 
-		setFlowOledTransfer({
-			nodeId,
-			subNodeId: pixelSubNode?.id,
-			scene: sceneData
-				? { id: sceneData.id || crypto.randomUUID(), name: pixelSubNode!.label, pixels: sceneData.pixels }
-				: node.oledScene || {
-						id: crypto.randomUUID(),
-						name: node.label,
-						pixels: btoa(String.fromCharCode(...new Uint8Array(1024))),
-					},
-			returnTo: flowStore.gamePath,
-			returnPath: page.url.pathname,
-			overlayPixels: overlayPixels.length > 0 ? overlayPixels : undefined,
-		});
+		// If there are multiple pixel-art subnodes (or even one), use layer mode
+		if (pixelArtSubs.length > 0) {
+			const emptyPixels = btoa(String.fromCharCode(...new Uint8Array(1024)));
+			const layers: FlowOledLayer[] = pixelArtSubs.map((sub) => {
+				const scene = sub.config.scene as { id?: string; name?: string; pixels?: string } | null;
+				return {
+					subNodeId: sub.id,
+					label: sub.label || 'Pixel Art',
+					pixels: scene?.pixels || emptyPixels,
+					visible: !sub.hidden,
+					condition: sub.condition ? {
+						variable: sub.condition.variable,
+						operator: sub.condition.comparison,
+						value: String(sub.condition.value),
+					} : null,
+				};
+			});
+
+			// The "scene" field uses the selected subnode or the first one
+			const primarySub = pixelSubNode || pixelArtSubs[0];
+			const primaryScene = primarySub.config.scene as { id?: string; name?: string; pixels?: string } | null;
+
+			setFlowOledTransfer({
+				nodeId,
+				subNodeId: primarySub.id,
+				scene: {
+					id: primaryScene?.id || crypto.randomUUID(),
+					name: primarySub.label || node.label,
+					pixels: primaryScene?.pixels || emptyPixels,
+				},
+				returnTo: flowStore.gamePath,
+				returnPath: page.url.pathname,
+				layers,
+			});
+		} else {
+			// Legacy mode: no pixel-art subnodes, use node-level oledScene
+			setFlowOledTransfer({
+				nodeId,
+				scene: node.oledScene || {
+					id: crypto.randomUUID(),
+					name: node.label,
+					pixels: btoa(String.fromCharCode(...new Uint8Array(1024))),
+				},
+				returnTo: flowStore.gamePath,
+				returnPath: page.url.pathname,
+			});
+		}
 		goto('/tools/oled');
 	}
 
@@ -505,9 +601,10 @@
 		if (template.variables) node.variables = structuredClone(template.variables);
 		if (template.subNodes) {
 			node.subNodes = structuredClone(template.subNodes);
-			// Regenerate sub-node IDs to ensure uniqueness
+			// Regenerate sub-node IDs and populate displayText from label
 			for (const sub of node.subNodes) {
 				sub.id = crypto.randomUUID();
+				if (sub.displayText === undefined) sub.displayText = sub.label;
 			}
 		}
 		if (template.stackOffsetX !== undefined) node.stackOffsetX = template.stackOffsetX;
@@ -688,6 +785,7 @@
 						{selectedEdge}
 						selectedSubNode={selectedSubNode}
 						allModuleNodes={flowStore.graph?.nodes.filter((n) => n.type === 'module' && n.moduleData) ?? []}
+						allNodes={flowStore.graph?.nodes ?? []}
 						sharedVariables={flowStore.project?.sharedVariables ?? []}
 						gameplayModuleNodes={flowStore.project?.flows.filter((f) => f.flowType === 'gameplay' || f.flowType === 'data').flatMap((f) => f.nodes).filter((n) => n.type === 'module' && n.moduleData) ?? []}
 						onUpdateNode={updateNode}

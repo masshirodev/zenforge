@@ -32,6 +32,7 @@ export type SubNodeType =
 	| 'bar'
 	| 'indicator'
 	| 'pixel-art'
+	| 'animation'
 	| 'separator'
 	| 'blank'
 	| 'custom';
@@ -61,6 +62,8 @@ export interface SubNode {
 	displayText?: string;
 	/** Visual grouping label for organizing sub-nodes (no code generation impact) */
 	group?: string;
+	/** When true, this sub-node is hidden from preview and skipped in code generation */
+	hidden?: boolean;
 }
 
 export interface SubNodeParam {
@@ -285,7 +288,8 @@ export type FlowConditionType =
 	| 'button_hold'
 	| 'timeout'
 	| 'variable'
-	| 'custom';
+	| 'custom'
+	| 'animation_end';
 
 export interface FlowCondition {
 	type: FlowConditionType;
@@ -297,6 +301,10 @@ export interface FlowCondition {
 	comparison?: '==' | '!=' | '>' | '<' | '>=' | '<=';
 	value?: number;
 	customCode?: string;
+	/** Delay in ms after animation ends before transitioning (for animation_end) */
+	delayMs?: number;
+	/** Sub-node ID of the animation sub-node to watch (for animation_end) */
+	animationSubNodeId?: string;
 }
 
 export interface FlowEdge {
@@ -341,6 +349,8 @@ export interface FlowGraph {
 	settings: FlowSettings;
 	createdAt: number;
 	updatedAt: number;
+	/** Module IDs whose auto-generated menu nodes the user intentionally deleted */
+	suppressedModuleMenus?: string[];
 }
 
 // ==================== Flow Profiles ====================
@@ -563,6 +573,7 @@ export function createSubNode(
 		id: crypto.randomUUID(),
 		type,
 		label,
+		displayText: label,
 		position: 'stack',
 		order,
 		interactive,

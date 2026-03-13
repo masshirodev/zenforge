@@ -75,6 +75,24 @@
 		return ids;
 	});
 
+	// Build a set of module node IDs that share a moduleId with another node
+	let duplicateNodeIds = $derived.by(() => {
+		const ids = new Set<string>();
+		const moduleNodes = graph.nodes.filter((n) => n.type === 'module' && n.moduleData);
+		const byModuleId = new Map<string, string[]>();
+		for (const node of moduleNodes) {
+			const mid = node.moduleData!.moduleId;
+			if (!byModuleId.has(mid)) byModuleId.set(mid, []);
+			byModuleId.get(mid)!.push(node.id);
+		}
+		for (const nodeIds of byModuleId.values()) {
+			if (nodeIds.length > 1) {
+				for (const id of nodeIds) ids.add(id);
+			}
+		}
+		return ids;
+	});
+
 	// Compute edge spread indices: for each edge, its index among siblings at the same source/target
 	let edgeSpread = $derived.by(() => {
 		const sourceGroups = new Map<string, string[]>(); // sourceKey -> edgeIds
@@ -416,6 +434,7 @@
 					expanded={expandedNodes.has(node.id)}
 					selectedSubNodeId={primaryNodeId === node.id ? selectedSubNodeId : null}
 					hasConflict={conflictNodeIds.has(node.id)}
+					isDuplicate={duplicateNodeIds.has(node.id)}
 					onSelect={handleNodeSelect}
 					onSelectSubNode={onSelectSubNode}
 					onStartConnect={handleStartConnect}

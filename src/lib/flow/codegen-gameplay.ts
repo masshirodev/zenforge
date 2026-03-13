@@ -37,7 +37,7 @@ function getMainCode(md: { mainCode?: string; triggerCode?: string }): string {
  *   - functionsCode → function definitions, constants, defines
  *   - comboCode → combo blocks
  */
-export function generateGameplayGpc(graph: FlowGraph): GameplayCodegenResult {
+export function generateGameplayGpc(graph: FlowGraph, allFlowModuleNodes?: FlowNode[]): GameplayCodegenResult {
 	const result: GameplayCodegenResult = {
 		defines: [],
 		variables: [],
@@ -71,7 +71,9 @@ export function generateGameplayGpc(graph: FlowGraph): GameplayCodegenResult {
 				result.functions.push('');
 
 				// Generate recoiltable.gpc as a separate file if any module needs it
-				const needsRecoilTable = moduleNodes.some(
+				// Check across all flows (not just the current one) for antirecoil_timeline
+				const searchNodes = allFlowModuleNodes ?? moduleNodes;
+				const needsRecoilTable = searchNodes.some(
 					(n) => n.moduleData?.moduleId === 'antirecoil_timeline'
 				);
 				if (needsRecoilTable) {

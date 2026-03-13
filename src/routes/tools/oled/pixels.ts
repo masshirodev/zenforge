@@ -61,3 +61,66 @@ export function base64ToPixels(base64: string): Uint8Array {
 	}
 	return pixels;
 }
+
+/** Extract a rectangular region of pixels into a small buffer.
+ *  The buffer uses 1 byte per pixel for simplicity (not packed bits). */
+export function extractRegion(
+	pixels: Uint8Array,
+	rx: number,
+	ry: number,
+	rw: number,
+	rh: number
+): Uint8Array {
+	const buf = new Uint8Array(rw * rh);
+	for (let y = 0; y < rh; y++) {
+		for (let x = 0; x < rw; x++) {
+			const sx = rx + x;
+			const sy = ry + y;
+			if (sx >= 0 && sx < OLED_WIDTH && sy >= 0 && sy < OLED_HEIGHT) {
+				buf[y * rw + x] = getPixel(pixels, sx, sy) ? 1 : 0;
+			}
+		}
+	}
+	return buf;
+}
+
+/** Clear a rectangular region to black */
+export function clearRegion(
+	pixels: Uint8Array,
+	rx: number,
+	ry: number,
+	rw: number,
+	rh: number
+): void {
+	for (let y = 0; y < rh; y++) {
+		for (let x = 0; x < rw; x++) {
+			const sx = rx + x;
+			const sy = ry + y;
+			if (sx >= 0 && sx < OLED_WIDTH && sy >= 0 && sy < OLED_HEIGHT) {
+				setPixel(pixels, sx, sy, false);
+			}
+		}
+	}
+}
+
+/** Stamp a region buffer onto the canvas at the given position */
+export function stampRegion(
+	pixels: Uint8Array,
+	buf: Uint8Array,
+	rw: number,
+	rh: number,
+	dx: number,
+	dy: number
+): void {
+	for (let y = 0; y < rh; y++) {
+		for (let x = 0; x < rw; x++) {
+			if (buf[y * rw + x]) {
+				const sx = dx + x;
+				const sy = dy + y;
+				if (sx >= 0 && sx < OLED_WIDTH && sy >= 0 && sy < OLED_HEIGHT) {
+					setPixel(pixels, sx, sy, true);
+				}
+			}
+		}
+	}
+}

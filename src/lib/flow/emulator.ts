@@ -109,7 +109,7 @@ export class FlowEmulator {
 	}
 
 	getInteractiveSubNodes(node: FlowNode): SubNode[] {
-		return getSortedSubNodes(node).filter((sn) => sn.interactive);
+		return getSortedSubNodes(node).filter((sn) => sn.interactive && !sn.hidden);
 	}
 
 	getCursor(nodeId: string): number {
@@ -384,6 +384,7 @@ export class FlowEmulator {
 		}
 
 		for (const sub of sortedSubs) {
+			if (sub.hidden) continue;
 			const def = getSubNodeDef(sub.type);
 			if (!def) continue;
 
@@ -440,7 +441,7 @@ export class FlowEmulator {
 			};
 
 			// Merge label into config for render
-			const configWithLabel = { ...sub.config, label: sub.displayText ?? sub.label };
+			const configWithLabel = { ...sub.config, label: sub.displayText ?? '' };
 			def.render(configWithLabel, ctx);
 
 			if (sub.interactive) cursorIndex++;
