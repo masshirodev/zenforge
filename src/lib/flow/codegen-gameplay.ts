@@ -1,4 +1,4 @@
-import type { FlowGraph, FlowNode, FlowVariable, WeaponADTProfile } from '$lib/types/flow';
+import type { FlowGraph, FlowNode, FlowVariable, WeaponADTProfile, WeaponDefaultsConfig } from '$lib/types/flow';
 import type { KeyMapping } from '$lib/utils/keyboard-parser';
 import {
 	collectPersistVars,
@@ -543,5 +543,144 @@ function injectAdpChecks(comboCode: string, profiles: WeaponADTProfile[], weapon
 
 	if (checks.length === 0) return comboCode;
 	return comboCode.replace('// INJECT_ADP_CHECKS_HERE', checks.join('\n'));
+}
+
+// ==================== Weapon Defaults ====================
+
+export interface WeaponDefaultsCodeResult {
+	varDecls: string[];
+	functions: string[];
+	mainLoopLines: string[];
+	initLines: string[];
+	persistVars: PersistVar[];
+}
+
+/**
+ * Generate GPC code for per-weapon variable defaults.
+ *
+ * When a weapon switch is detected (CurrentWeapon changes), the generated
+ * ApplyWeaponDefaults() function either resets variables to design-time
+ * defaults ("reset" mode) or swaps values in/out of per-weapon backup
+ * arrays ("remember" mode).
+ */
+export function generateWeaponDefaultsCode(
+	config: WeaponDefaultsConfig,
+	weaponCount: number,
+	allVars: FlowVariable[],
+	weaponNames: string[]
+): WeaponDefaultsCodeResult | null {
+	if (config.enabledVars.length === 0 || weaponCount === 0) return null;
+
+	// Resolve enabled variables against all known variables
+	const enabledSet = new Set(config.enabledVars);
+	const vars = allVars.filter((v) => enabledSet.has(v.name));
+	if (vars.length === 0) return null;
+
+	const varDecls: string[] = [];
+	const functions: string[] = [];
+	const mainLoopLines: string[] = [];
+	const initLines: string[] = [];
+	const persistVars: PersistVar[] = [];
+
+	// Tracking variable for weapon change detection
+	varDecls.push('int _prev_CurrentWeapon = -1;');
+
+	if (config.rememberTweaks) {
+		// "Remember" mode: backup arrays hold per-weapon values
+		for (const v of vars) {
+			const arrName = `_wd_${v.name}`;
+			const defaults: number[] = [];
+			for (let i = 0; i < weaponCount; i++) {
+				defaults.push(config.overrides[i]?.[v.name] ?? (v.defaultValue as number));
+			}
+			varDecls.push(`int ${arrName}[WEAPON_COUNT];`);
+			for (let i = 0; i < defaults.length; i++) {
+				varDecls.push(`${arrName}[${i}] = ${defaults[i]};`);
+			}
+
+			// Sparse persistence for backup array
+			const min = v.min ?? 0;
+			const max = v.max ?? (min === 0 && (v.defaultValue as number) <= 1 ? 1 : 100);
+			persistVars.push({
+				name: arrName,
+				min,
+				max,
+				defaultValue: v.defaultValue as number,
+				sparseArray: {
+					countExpr: 'WEAPON_COUNT',
+					maxCount: 'WEAPON_COUNT',
+					indexVar: `_bp_wd_i_${v.name}`,
+					countVar: `_bp_wd_c_${v.name}`,
+					stride: 1,
+				},
+			});
+		}
+
+		// ApplyWeaponDefaults: save outgoing, load incoming
+		functions.push('function ApplyWeaponDefaults() {');
+		functions.push('    // Save outgoing weapon values');
+		functions.push('    if(_prev_CurrentWeapon >= 0) {');
+		for (const v of vars) {
+			functions.push(`        _wd_${v.name}[_prev_CurrentWeapon] = ${v.name};`);
+		}
+		functions.push('    }');
+		functions.push('    // Load incoming weapon values');
+		for (const v of vars) {
+			functions.push(`    ${v.name} = _wd_${v.name}[CurrentWeapon];`);
+		}
+		functions.push('}');
+		functions.push('');
+	} else {
+		// "Reset" mode: always reset to design-time defaults
+		functions.push('function ApplyWeaponDefaults() {');
+
+		// Set all vars to their base defaults first
+		for (const v of vars) {
+			functions.push(`    ${v.name} = ${v.defaultValue};`);
+		}
+
+		// Sparse overrides for weapons with non-default values
+		const weaponIndices = Object.keys(config.overrides)
+			.map(Number)
+			.filter((i) => i < weaponCount)
+			.sort((a, b) => a - b);
+
+		for (const wi of weaponIndices) {
+			const overrides = config.overrides[wi];
+			// Only include overrides for enabled vars
+			const entries = Object.entries(overrides).filter(([name]) => enabledSet.has(name));
+			if (entries.length === 0) continue;
+
+			const label = weaponNames[wi] ?? `Weapon ${wi}`;
+			const assignments = entries.map(([name, val]) => `${name} = ${val};`).join(' ');
+			functions.push(`    if(CurrentWeapon == ${wi}) { ${assignments} }  // ${label}`);
+		}
+
+		functions.push('}');
+		functions.push('');
+	}
+
+	// Main loop: weapon change detection
+	mainLoopLines.push('    // --- Weapon Defaults ---');
+	mainLoopLines.push('    if(CurrentWeapon != _prev_CurrentWeapon) {');
+	mainLoopLines.push('        ApplyWeaponDefaults();');
+	mainLoopLines.push('        _prev_CurrentWeapon = CurrentWeapon;');
+	mainLoopLines.push('        FlowRedraw = TRUE;');
+	mainLoopLines.push('    }');
+
+	// Init: load current weapon values
+	if (config.rememberTweaks) {
+		// In remember mode after Flow_Load(), just load from backup arrays
+		for (const v of vars) {
+			initLines.push(`    ${v.name} = _wd_${v.name}[CurrentWeapon];`);
+		}
+		initLines.push('    _prev_CurrentWeapon = CurrentWeapon;');
+	} else {
+		// In reset mode, apply defaults and set tracking var
+		initLines.push('    ApplyWeaponDefaults();');
+		initLines.push('    _prev_CurrentWeapon = CurrentWeapon;');
+	}
+
+	return { varDecls, functions, mainLoopLines, initLines, persistVars };
 }
 

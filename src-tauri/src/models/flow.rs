@@ -17,6 +17,9 @@ pub struct FlowProject {
     /// Profile switch button configuration
     #[serde(default)]
     pub profile_switch: Option<ProfileSwitchConfig>,
+    /// Per-weapon variable defaults. When set, replaces the profile system.
+    #[serde(default)]
+    pub weapon_defaults: Option<WeaponDefaultsConfig>,
     #[serde(default)]
     pub updated_at: u64,
 }
@@ -42,6 +45,19 @@ pub struct ProfileSwitchConfig {
     /// Optional modifier button that must be held
     #[serde(default)]
     pub modifier: Option<String>,
+}
+
+/// Per-weapon variable default overrides
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WeaponDefaultsConfig {
+    #[serde(default)]
+    pub enabled_vars: Vec<String>,
+    /// Sparse overrides: weaponIndex (as string key) -> { varName -> value }
+    #[serde(default)]
+    pub overrides: HashMap<String, HashMap<String, serde_json::Value>>,
+    #[serde(default)]
+    pub remember_tweaks: bool,
 }
 
 /// Complete flow graph definition
@@ -150,6 +166,9 @@ pub struct ModuleNodeData {
     /// Button/key params from module definition — key: param key, value: selected button constant
     #[serde(default)]
     pub params: Option<HashMap<String, String>>,
+    /// Param types from module definition — key: param key, value: "button" | "key"
+    #[serde(default)]
+    pub param_types: Option<HashMap<String, String>>,
     #[serde(default)]
     pub conflicts: Vec<String>,
     /// Quick toggle: 1-2 controller buttons or a single keyboard key

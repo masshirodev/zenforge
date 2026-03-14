@@ -1281,10 +1281,17 @@
 						{#each Object.entries(selectedNode.moduleData.params) as [key, value]}
 							<div>
 								<label class="mb-0.5 block text-[10px] text-zinc-500">{key.replace(/_/g, ' ')}</label>
-								<ButtonSelect
-									{value}
-									onchange={(v) => updateModuleParam(key, v)}
-								/>
+								{#if selectedNode.moduleData?.paramTypes?.[key] === 'key'}
+									<KeySelect
+										{value}
+										onchange={(v) => updateModuleParam(key, v)}
+									/>
+								{:else}
+									<ButtonSelect
+										{value}
+										onchange={(v) => updateModuleParam(key, v)}
+									/>
+								{/if}
 								<p class="mt-0.5 text-[10px] text-zinc-600">
 									{selectedNode.moduleData?.moduleId.toUpperCase()}_{key.toUpperCase()}
 								</p>
@@ -2169,7 +2176,12 @@
 				<!-- Sub-node list with groups -->
 				{#if sortedSubNodes.length > 0}
 					{@const ungrouped = sortedSubNodes.filter(s => !s.group)}
-					<div class="space-y-0.5">
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="space-y-0.5"
+						ondragover={(e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }}
+						ondrop={(e) => { e.preventDefault(); if (dragSubNodeIdx !== null && selectedNode) { const lastIdx = sortedSubNodes.length - 1; if (dragSubNodeIdx !== lastIdx) onReorderSubNodes(selectedNode.id, dragSubNodeIdx, lastIdx); dragSubNodeIdx = null; dragOverSubNodeIdx = null; dragOverGroup = null; } }}
+					>
 						<!-- Grouped sub-nodes -->
 						{#each subNodeGroups as groupName}
 							{@const groupSubs = sortedSubNodes.filter(s => s.group === groupName)}

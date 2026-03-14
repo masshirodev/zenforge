@@ -47,7 +47,14 @@
 
 		if (!menuFlow || !gameplayFlow) return [];
 
-		const profileCount = project.profiles?.length ?? 0;
+		// When weapon defaults are active, profiles are bypassed
+		const weaponDefaultsActive =
+			project.weaponDefaults &&
+			project.weaponDefaults.enabledVars.length > 0 &&
+			[...gameplayFlow.nodes, ...(dataFlow?.nodes ?? [])].some(
+				(n) => n.moduleData?.moduleId === 'weapondata'
+			);
+		const profileCount = weaponDefaultsActive ? 0 : (project.profiles?.length ?? 0);
 		return collectCombinedPersistVars(project, menuFlow, gameplayFlow, profileCount, dataFlow);
 	})());
 
@@ -57,10 +64,11 @@
 
 			if (pv.sparseArray) {
 				// Sparse: count field + per-entry (index + stride values)
-				const countBits = bitCount2(0, parseInt(pv.sparseArray.maxCount) || 120);
-				const indexBits = bitCount2(0, parseInt(pv.sparseArray.maxCount) || 120);
+				const resolvedMaxCount = parseCountExpr(pv.sparseArray.maxCount);
+				const countBits = bitCount2(0, resolvedMaxCount);
+				const indexBits = bitCount2(0, resolvedMaxCount);
 				const entryBits = indexBits + bpv * pv.sparseArray.stride;
-				const maxEntries = parseInt(pv.sparseArray.maxCount) || 120;
+				const maxEntries = resolvedMaxCount;
 				return {
 					pv,
 					bitsPerValue: bpv,

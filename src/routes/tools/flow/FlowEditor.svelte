@@ -115,7 +115,7 @@
 	let showRightPanel = $state(true);
 	let chunkRefreshKey = $state(0);
 	let showEmulator = $state(false);
-	let showProfiles = $state(false);
+	let rightPanelTab = $state<'properties' | 'profiles'>('properties');
 	let weaponDataModalOpen = $state(false);
 	let weaponDetectionModalOpen = $state(false);
 
@@ -204,18 +204,19 @@
 							addToast(`Animation updated (${transfer.animation.scenes.length} frames)`, 'success');
 						}
 					} else if (transfer.layers && transfer.layers.length > 0) {
-						// Layer mode: update all pixel-art subnodes from layers
+						// Layer mode: update existing and create new pixel-art subnodes from layers
 						let updated = 0;
+						let created = 0;
 						for (const layer of transfer.layers) {
+							const condition: SubNodeCondition | undefined = layer.condition?.variable
+								? {
+									variable: layer.condition.variable,
+									comparison: (layer.condition.operator ?? '==') as SubNodeCondition['comparison'],
+									value: Number(layer.condition.value ?? 0),
+								}
+								: undefined;
 							const sub = node.subNodes.find((s) => s.id === layer.subNodeId);
 							if (sub && sub.type === 'pixel-art') {
-								const condition: SubNodeCondition | undefined = layer.condition?.variable
-									? {
-										variable: layer.condition.variable,
-										comparison: (layer.condition.operator ?? '==') as SubNodeCondition['comparison'],
-										value: Number(layer.condition.value ?? 0),
-									}
-									: undefined;
 								updateSubNode(node.id, sub.id, {
 									label: layer.label,
 									config: { ...sub.config, scene: { id: sub.id, name: layer.label, pixels: layer.pixels } },
@@ -223,10 +224,24 @@
 									hidden: !layer.visible || undefined,
 								});
 								updated++;
+							} else {
+								// New layer created in OLED — create a pixel-art subnode
+								const newSub = addSubNode(node.id, 'pixel-art', layer.label);
+								if (newSub) {
+									updateSubNode(node.id, newSub.id, {
+										config: { ...newSub.config, scene: { id: newSub.id, name: layer.label, pixels: layer.pixels } },
+										condition,
+										hidden: !layer.visible || undefined,
+									});
+									created++;
+								}
 							}
 						}
-						if (updated > 0) {
-							addToast(`${updated} pixel art layer${updated > 1 ? 's' : ''} updated from OLED editor`, 'success');
+						const parts: string[] = [];
+						if (updated > 0) parts.push(`${updated} updated`);
+						if (created > 0) parts.push(`${created} created`);
+						if (parts.length > 0) {
+							addToast(`Pixel art layers: ${parts.join(', ')}`, 'success');
 						}
 					} else if (transfer.subNodeId) {
 						const sub = node.subNodes.find((s) => s.id === transfer.subNodeId);
@@ -749,27 +764,27 @@
 			</svg>
 		</button>
 
-		<!-- Right panel: Properties / Profiles -->
+		<!-- Right panel: Properties / Profiles / Weapon Defaults -->
 		{#if showRightPanel}
 		<div class="flex h-full w-72 shrink-0 flex-col border-l border-zinc-800 bg-zinc-900">
 			<!-- Panel tabs -->
 			<div class="flex border-b border-zinc-800">
 				<button
-					class="flex-1 px-3 py-1.5 text-xs font-medium {!showProfiles ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'}"
-					onclick={() => (showProfiles = false)}
+					class="flex-1 px-3 py-1.5 text-xs font-medium {rightPanelTab === 'properties' ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'}"
+					onclick={() => (rightPanelTab = 'properties')}
 				>
 					Properties
 				</button>
 				<button
-					class="flex-1 px-3 py-1.5 text-xs font-medium {showProfiles ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'}"
-					onclick={() => (showProfiles = true)}
+					class="flex-1 px-3 py-1.5 text-xs font-medium {rightPanelTab === 'profiles' ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'}"
+					onclick={() => (rightPanelTab = 'profiles')}
 				>
 					Profiles{profiles.length > 0 ? ` (${profiles.length})` : ''}
 				</button>
 			</div>
 
 			<div class="min-h-0 flex-1 overflow-y-auto">
-				{#if showProfiles}
+				{#if rightPanelTab === 'profiles'}
 					<ProfilePanel
 						{profiles}
 						profileSwitch={profileSwitchConfig}

@@ -60,9 +60,11 @@ export function createModuleNode(
 
 	// Build params map from module definition (button/key params with defaults)
 	const params: Record<string, string> = {};
+	const paramTypes: Record<string, string> = {};
 	for (const p of moduleDef.params) {
 		if (p.type === 'button' || p.type === 'key') {
 			params[p.key] = p.default ?? '';
+			paramTypes[p.key] = p.type;
 		}
 	}
 
@@ -78,6 +80,7 @@ export function createModuleNode(
 		options,
 		extraVars: { ...moduleDef.extra_vars },
 		params: Object.keys(params).length > 0 ? params : undefined,
+		paramTypes: Object.keys(paramTypes).length > 0 ? paramTypes : undefined,
 		keyboardMappings: moduleDef.id === 'keyboard' ? [] : undefined,
 		quickToggle:
 			moduleDef.quick_toggle && moduleDef.quick_toggle.length > 0

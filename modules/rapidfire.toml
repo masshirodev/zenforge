@@ -2,13 +2,14 @@
 display_name = "Rapid Fire"
 id = "rapid"
 type = "fps"
-description = "Rapid fire by toggling the fire button on/off while ADS.\nConfigurable speed controls the press/release cycle timing."
+description = "Rapid fire by toggling the fire button on/off while ADS.\nConfigurable speed controls the press/release cycle timing.\nADS Only mode requires L2+R2; Hip & ADS mode requires only R2."
 state_display = "RF"
 status_var = "RapidFireStatus"
-trigger = "if (RapidFireStatus && get_val(PS5_R2) && get_val(PS5_L2)) {\n    combo_run(RapidFire);\n} else {\n    combo_stop(RapidFire);\n}"
+trigger = "if (RapidFireStatus && get_val(PS5_R2) && (RapidFireHipFire || get_val(PS5_L2))) {\n    combo_run(RapidFire);\n} else {\n    combo_stop(RapidFire);\n}"
 combo = "combo RapidFire {\n    RapidFireActualSpeed = RapidFireSpeed * 20;\n    wait(jitter(RapidFireActualSpeed));\n    set_val(PS5_R2, 100);\n    wait(jitter(RapidFireActualSpeed));\n    set_val(PS5_R2, 0);\n    wait(jitter(RapidFireActualSpeed));\n}"
 options = [
     { name = "Status", var = "RapidFireStatus", type = "toggle", default = 0 },
+    { name = "Hip Fire", var = "RapidFireHipFire", type = "toggle", default = 0 },
     { name = "Speed", var = "RapidFireSpeed", type = "value", min = 1, max = 10, default = 5 },
 ]
 

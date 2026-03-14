@@ -98,8 +98,9 @@
 	import HistoryPanel from '$lib/components/editor/HistoryPanel.svelte';
 	import GitPanel from '$lib/components/editor/GitPanel.svelte';
 	import FlowPersistencePanel from '$lib/components/editor/FlowPersistencePanel.svelte';
+	import FlowDefaultsPanel from '$lib/components/editor/FlowDefaultsPanel.svelte';
 	import { getDiagnosticsStore, getFileSeverityMap } from '$lib/stores/diagnostics.svelte';
-	import { getFlowStore, closeGraph, addNode, updateNode, switchFlow } from '$lib/stores/flow.svelte';
+	import { getFlowStore, closeGraph, addNode, updateNode, switchFlow, updateVariableDefault, updateProfile, updateWeaponOverride } from '$lib/stores/flow.svelte';
 	import { getKeyCombo, matchesCombo } from '$lib/stores/keybindings.svelte';
 	import CommandPalette from '$lib/components/layout/CommandPalette.svelte';
 	import type { Command } from '$lib/components/layout/CommandPalette.svelte';
@@ -242,7 +243,7 @@
 	let activeFileGitChanges = $state<GitLineChange[]>([]);
 
 	// Page tab state
-	let activeTab = $state<'overview' | 'files' | 'flow' | 'build' | 'history' | 'git' | 'recoil' | 'persistence'>('overview');
+	let activeTab = $state<'overview' | 'files' | 'flow' | 'build' | 'history' | 'git' | 'recoil' | 'persistence' | 'defaults'>('overview');
 
 	// Git repo detection
 	let isGitRepo = $state(false);
@@ -295,6 +296,16 @@
 			);
 	});
 
+	// Weapon names from weapondata module node for defaults panel
+	let cachedWeaponNames = $derived.by(() => {
+		if (!cachedFlowProject) return [];
+		const allNodes = cachedFlowProject.flows
+			.filter((f) => f.flowType === 'gameplay' || f.flowType === 'data')
+			.flatMap((f) => f.nodes);
+		const wdNode = allNodes.find((n) => n.moduleData?.moduleId === 'weapondata');
+		return wdNode?.moduleData?.weaponNames ?? [];
+	});
+
 	let gameTabs = $derived((() => {
 		const isFlow = store.selectedGame?.generation_mode === 'flow';
 		const tabs = ['overview'];
@@ -307,7 +318,7 @@
 			tabs.push('recoil');
 		}
 		if (isFlow) {
-			tabs.push('persistence');
+			tabs.push('defaults', 'persistence');
 		}
 		tabs.push('build', 'history', 'git');
 		return tabs;
@@ -1076,7 +1087,7 @@
 					class:hover:text-zinc-200={activeTab !== tab}
 					onclick={() => (activeTab = tab as typeof activeTab)}
 				>
-					{{ overview: m.page_tab_overview(), files: m.page_tab_files(), flow: m.page_tab_flow(), build: m.page_tab_build(), history: m.page_tab_history(), git: m.page_tab_git(), recoil: 'Recoil', persistence: m.page_tab_persistence() }[tab]}
+					{{ overview: m.page_tab_overview(), files: m.page_tab_files(), flow: m.page_tab_flow(), build: m.page_tab_build(), history: m.page_tab_history(), git: m.page_tab_git(), recoil: 'Recoil', persistence: m.page_tab_persistence(), defaults: m.page_tab_defaults() }[tab]}
 					{#if tab === 'build' && buildResult}
 						<span
 							class="ml-1 inline-block h-2 w-2 rounded-full"
@@ -1191,6 +1202,26 @@
 							<div class="flex h-64 items-center justify-center text-sm text-zinc-500">
 								Loading recoil table...
 							</div>
+						{/if}
+					{:else if activeTab === 'defaults'}
+						{#if cachedFlowProject}
+							<FlowDefaultsPanel
+								project={cachedFlowProject}
+								weaponNames={cachedWeaponNames}
+								onUpdateDefault={updateVariableDefault}
+								onUpdateProfileOverride={(profileId, varName, value) => {
+									const profile = (cachedFlowProject?.profiles ?? []).find((p) => p.id === profileId);
+									if (!profile) return;
+									const overrides = { ...profile.variableOverrides };
+									if (value === undefined) {
+										delete overrides[varName];
+									} else {
+										overrides[varName] = value;
+									}
+									updateProfile(profileId, { variableOverrides: overrides });
+								}}
+								onUpdateWeaponOverride={updateWeaponOverride}
+							/>
 						{/if}
 					{:else if activeTab === 'persistence'}
 						{#if cachedFlowProject}

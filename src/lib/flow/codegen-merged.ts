@@ -6,7 +6,7 @@ import {
 	generateBitpackPersistence,
 	type PersistVar,
 } from './codegen';
-import { generateGameplayGpc, generateGameplayGpcStandalone } from './codegen-gameplay';
+import { generateGameplayGpc, generateGameplayGpcStandalone, generateWeaponDefaultsCode } from './codegen-gameplay';
 
 /**
  * Generate a single merged GPC script from an entire FlowProject.
@@ -39,7 +39,14 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 	const hasData = dataFlow && dataFlow.nodes.some((n) => n.type === 'module' || n.type === 'custom');
 
 	const profiles = project.profiles ?? [];
-	const profileCount = profiles.length;
+	// When weapon defaults are active with enabled vars, profiles are bypassed
+	const weaponDefaultsActive =
+		project.weaponDefaults &&
+		project.weaponDefaults.enabledVars.length > 0 &&
+		[...(gameplayFlow?.nodes ?? []), ...(dataFlow?.nodes ?? [])].some(
+			(n) => n.moduleData?.moduleId === 'weapondata'
+		);
+	const profileCount = weaponDefaultsActive ? 0 : profiles.length;
 
 	// If only one flow has content, just generate that one
 	if (hasMenu && !hasGameplay && !hasData) {
@@ -68,7 +75,38 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 	const gameplayResult = generateGameplayGpc(gameplayFlow!, allFlowModuleNodes);
 	const menuCode = generateFlowGpc(menuFlow!, profileCount, { skipPersistence: true });
 
-	// Collect combined persist vars from all sources
+	// Generate weapon defaults code (if active)
+	let weaponDefaultsResult: ReturnType<typeof generateWeaponDefaultsCode> = null;
+	if (weaponDefaultsActive && project.weaponDefaults) {
+		// Collect all variables from all flows to resolve enabled vars
+		const allVars: FlowVariable[] = [
+			...project.sharedVariables,
+			...(menuFlow?.globalVariables ?? []),
+			...(menuFlow?.nodes.flatMap((n) => n.variables) ?? []),
+			...(gameplayFlow?.nodes.flatMap((n) => n.variables) ?? []),
+			...(dataFlow?.nodes.flatMap((n) => n.variables) ?? []),
+		];
+		// Deduplicate by name
+		const seen = new Set<string>();
+		const uniqueVars = allVars.filter((v) => {
+			if (seen.has(v.name)) return false;
+			seen.add(v.name);
+			return true;
+		});
+
+		const weaponNames =
+			allFlowModuleNodes.find((n) => n.moduleData?.moduleId === 'weapondata')
+				?.moduleData?.weaponNames ?? [];
+
+		weaponDefaultsResult = generateWeaponDefaultsCode(
+			project.weaponDefaults,
+			weaponNames.length,
+			uniqueVars,
+			weaponNames
+		);
+	}
+
+	// Collect combined persist vars from all sources (includes weapon defaults backup arrays)
 	const combinedPersistVars = collectCombinedPersistVars(project, menuFlow!, gameplayFlow!, profileCount, dataFlow);
 
 	const lines: string[] = [];
@@ -206,7 +244,7 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 	if (project.sharedVariables.length > 0) {
 		lines.push(`// ===== SHARED VARIABLES =====`);
 		for (const v of project.sharedVariables) {
-			lines.push(generateVarDecl(v, profileCount));
+			lines.push(...generateVarDecl(v, profileCount));
 		}
 		lines.push('');
 	}
@@ -256,6 +294,13 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 		lines.push('');
 	}
 
+	// Weapon defaults variables (backup arrays in "remember" mode)
+	if (weaponDefaultsResult) {
+		lines.push(`// ===== WEAPON DEFAULTS =====`);
+		lines.push(...weaponDefaultsResult.varDecls);
+		lines.push('');
+	}
+
 	// Emit const declarations (string tables, image data) before imports
 	if (constLines.length > 0) {
 		lines.push(...constLines);
@@ -300,6 +345,12 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 		lines.push('');
 	}
 
+	// Weapon defaults function (ApplyWeaponDefaults)
+	if (weaponDefaultsResult && weaponDefaultsResult.functions.length > 0) {
+		lines.push(`// ===== WEAPON DEFAULTS FUNCTION =====`);
+		lines.push(...weaponDefaultsResult.functions);
+	}
+
 	// Combined persistence (bitpack-based, covers both flows)
 	if (combinedPersistVars.length > 0) {
 		lines.push(`// ===== PERSISTENCE =====`);
@@ -310,7 +361,8 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 	// Merged init block
 	const hasDataInit = dataResult && dataResult.initCode.length > 0;
 	const hasGameplayInit = gameplayResult.initCode.length > 0;
-	const needsInit = initStartIdx >= 0 || hasDataInit || hasGameplayInit || combinedPersistVars.length > 0;
+	const hasWeaponDefaultsInit = weaponDefaultsResult && weaponDefaultsResult.initLines.length > 0;
+	const needsInit = initStartIdx >= 0 || hasDataInit || hasGameplayInit || combinedPersistVars.length > 0 || hasWeaponDefaultsInit;
 
 	if (needsInit) {
 		lines.push(`// ===== INIT =====`);
@@ -341,6 +393,12 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 			lines.push(`    Flow_Load();`);
 		}
 
+		// Weapon defaults init (after Flow_Load so backup arrays are restored)
+		if (hasWeaponDefaultsInit) {
+			lines.push(`    // --- Weapon Defaults Init ---`);
+			lines.push(...weaponDefaultsResult!.initLines);
+		}
+
 		lines.push(`}`);
 		lines.push('');
 	}
@@ -354,6 +412,12 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 		lines.push('');
 		lines.push(`    // --- Profile Switching ---`);
 		lines.push(...generateProfileSwitchCode(project.profileSwitch, profileCount));
+	}
+
+	// Weapon defaults: detect weapon change and apply defaults
+	if (weaponDefaultsResult && weaponDefaultsResult.mainLoopLines.length > 0) {
+		lines.push('');
+		lines.push(...weaponDefaultsResult.mainLoopLines);
 	}
 
 	// Menu state dispatch (extract main body)
@@ -469,21 +533,68 @@ export function collectCombinedPersistVars(
 		seen.add('Weapons_RecoilValues');
 	}
 
+	// Weapon defaults backup arrays (only in "remember" mode)
+	if (
+		project.weaponDefaults?.rememberTweaks &&
+		project.weaponDefaults.enabledVars.length > 0 &&
+		hasWeapondata
+	) {
+		// Collect all variables from all flows to resolve enabled vars
+		const allFlowVars: FlowVariable[] = [
+			...project.sharedVariables,
+			...menuFlow.globalVariables,
+			...menuFlow.nodes.flatMap((n) => n.variables),
+			...gameplayFlow.nodes.flatMap((n) => n.variables),
+			...(dataFlow?.nodes.flatMap((n) => n.variables) ?? []),
+		];
+		const varMap = new Map<string, FlowVariable>();
+		for (const v of allFlowVars) {
+			if (!varMap.has(v.name)) varMap.set(v.name, v);
+		}
+
+		for (const varName of project.weaponDefaults.enabledVars) {
+			const arrName = `_wd_${varName}`;
+			if (seen.has(arrName)) continue;
+
+			const v = varMap.get(varName);
+			const min = v?.min ?? 0;
+			const max = v?.max ?? (min === 0 && ((v?.defaultValue as number) ?? 0) <= 1 ? 1 : 100);
+
+			result.push({
+				name: arrName,
+				min,
+				max,
+				defaultValue: (v?.defaultValue as number) ?? 0,
+				sparseArray: {
+					countExpr: 'WEAPON_COUNT',
+					maxCount: 'WEAPON_COUNT',
+					indexVar: `_bp_wd_i_${varName}`,
+					countVar: `_bp_wd_c_${varName}`,
+					stride: 1,
+				},
+			});
+			seen.add(arrName);
+		}
+	}
+
 	return result;
 }
 
 // ==================== Helpers ====================
 
-function generateVarDecl(v: FlowVariable, profileCount: number = 0): string {
+function generateVarDecl(v: FlowVariable, profileCount: number = 0): string[] {
 	if (v.perProfile && profileCount > 1 && v.type !== 'string') {
-		const defaults = Array(profileCount).fill(v.defaultValue).join(', ');
-		return `${v.type} ${v.name}[${profileCount}] = { ${defaults} };`;
+		const lines = [`${v.type} ${v.name}[${profileCount}];`];
+		for (let i = 0; i < profileCount; i++) {
+			lines.push(`${v.name}[${i}] = ${v.defaultValue};`);
+		}
+		return lines;
 	}
 	if (v.type === 'string') {
 		const size = v.arraySize ?? 32;
-		return `int8 ${v.name}[${size}];`;
+		return [`int8 ${v.name}[${size}];`];
 	}
-	return `${v.type} ${v.name} = ${v.defaultValue};`;
+	return [`${v.type} ${v.name} = ${v.defaultValue};`];
 }
 
 /**

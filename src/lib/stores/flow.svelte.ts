@@ -9,6 +9,7 @@ import type {
 	FlowProject,
 	FlowProfile,
 	ProfileSwitchConfig,
+	WeaponDefaultsConfig,
 	SubNode,
 	SubNodeType,
 } from '$lib/types/flow';
@@ -888,4 +889,160 @@ export function setProfileSwitch(config: ProfileSwitchConfig | undefined) {
 	pushUndo('Update profile switch');
 	state.project = { ...state.project, profileSwitch: config, updatedAt: Date.now() };
 	state.dirty = true;
+}
+
+// ==================== Weapon Defaults ====================
+
+export function getWeaponDefaults(): WeaponDefaultsConfig | undefined {
+	return state.project?.weaponDefaults;
+}
+
+export function setWeaponDefaults(config: WeaponDefaultsConfig | undefined) {
+	if (!state.project) return;
+	pushUndo('Update weapon defaults');
+	state.project = { ...state.project, weaponDefaults: config, updatedAt: Date.now() };
+	state.dirty = true;
+}
+
+export function toggleWeaponDefaultVar(varName: string, enabled: boolean) {
+	if (!state.project) return;
+	pushUndo('Toggle weapon default variable');
+	const current = state.project.weaponDefaults ?? {
+		enabledVars: [],
+		overrides: {},
+		rememberTweaks: false,
+	};
+	const enabledVars = enabled
+		? [...current.enabledVars.filter((v) => v !== varName), varName]
+		: current.enabledVars.filter((v) => v !== varName);
+
+	// When removing a variable, also clean it from all overrides
+	let overrides = current.overrides;
+	if (!enabled) {
+		overrides = { ...overrides };
+		for (const key of Object.keys(overrides)) {
+			const weaponOverrides = { ...overrides[Number(key)] };
+			delete weaponOverrides[varName];
+			if (Object.keys(weaponOverrides).length === 0) {
+				delete overrides[Number(key)];
+			} else {
+				overrides[Number(key)] = weaponOverrides;
+			}
+		}
+	}
+
+	state.project = {
+		...state.project,
+		weaponDefaults: { ...current, enabledVars, overrides },
+		updatedAt: Date.now(),
+	};
+	state.dirty = true;
+}
+
+export function updateWeaponOverride(
+	weaponIndex: number,
+	varName: string,
+	value: number | undefined
+) {
+	if (!state.project) return;
+	pushUndo('Update weapon override');
+	const current = state.project.weaponDefaults ?? {
+		enabledVars: [],
+		overrides: {},
+		rememberTweaks: false,
+	};
+	const overrides = { ...current.overrides };
+	if (value !== undefined) {
+		overrides[weaponIndex] = { ...(overrides[weaponIndex] ?? {}), [varName]: value };
+	} else {
+		if (overrides[weaponIndex]) {
+			const weaponOverrides = { ...overrides[weaponIndex] };
+			delete weaponOverrides[varName];
+			if (Object.keys(weaponOverrides).length === 0) {
+				delete overrides[weaponIndex];
+			} else {
+				overrides[weaponIndex] = weaponOverrides;
+			}
+		}
+	}
+	state.project = {
+		...state.project,
+		weaponDefaults: { ...current, overrides },
+		updatedAt: Date.now(),
+	};
+	state.dirty = true;
+}
+
+export function setRememberTweaks(value: boolean) {
+	if (!state.project) return;
+	pushUndo('Toggle remember tweaks');
+	const current = state.project.weaponDefaults ?? {
+		enabledVars: [],
+		overrides: {},
+		rememberTweaks: false,
+	};
+	state.project = {
+		...state.project,
+		weaponDefaults: { ...current, rememberTweaks: value },
+		updatedAt: Date.now(),
+	};
+	state.dirty = true;
+}
+
+// ==================== Variable Defaults ====================
+
+/** Update the base default value of a variable across all locations it appears */
+export function updateVariableDefault(varName: string, newDefault: number) {
+	if (!state.project) return;
+	pushUndo('Update variable default');
+
+	const updateInList = (vars: FlowVariable[]) =>
+		vars.map((v) => (v.name === varName ? { ...v, defaultValue: newDefault } : v));
+
+	state.project = {
+		...state.project,
+		sharedVariables: updateInList(state.project.sharedVariables),
+		flows: state.project.flows.map((f) => ({
+			...f,
+			globalVariables: updateInList(f.globalVariables),
+			nodes: f.nodes.map((n) => ({
+				...n,
+				variables: updateInList(n.variables),
+			})),
+		})),
+		updatedAt: Date.now(),
+	};
+	// Keep working graph in sync
+	if (state.graph) {
+		state.graph = {
+			...state.graph,
+			globalVariables: updateInList(state.graph.globalVariables),
+			nodes: state.graph.nodes.map((n) => ({
+				...n,
+				variables: updateInList(n.variables),
+			})),
+		};
+	}
+	state.dirty = true;
+}
+
+/** Collect all non-string variables from the project, deduplicated by name */
+export function getAllProjectVariables(): FlowVariable[] {
+	if (!state.project) return [];
+	const vars: FlowVariable[] = [];
+	const seen = new Set<string>();
+	const add = (v: FlowVariable) => {
+		if (v.type !== 'string' && !seen.has(v.name)) {
+			vars.push(v);
+			seen.add(v.name);
+		}
+	};
+	for (const v of state.project.sharedVariables) add(v);
+	for (const flow of state.project.flows) {
+		for (const v of flow.globalVariables) add(v);
+		for (const node of flow.nodes) {
+			for (const v of node.variables) add(v);
+		}
+	}
+	return vars;
 }

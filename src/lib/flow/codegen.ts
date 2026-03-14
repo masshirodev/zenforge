@@ -410,7 +410,7 @@ export function generateFlowGpc(
 	if (graph.globalVariables.length > 0) {
 		lines.push(`// Global flow variables`);
 		for (const v of graph.globalVariables) {
-			lines.push(generateVarDeclaration(v, profileCount));
+			lines.push(...generateVarDeclaration(v, profileCount));
 		}
 		lines.push(``);
 	}
@@ -432,7 +432,7 @@ export function generateFlowGpc(
 
 		for (const v of node.variables) {
 			if (!declaredVars.has(v.name)) {
-				lines.push(generateVarDeclaration(v, profileCount));
+				lines.push(...generateVarDeclaration(v, profileCount));
 				declaredVars.add(v.name);
 			}
 		}
@@ -1059,11 +1059,14 @@ function getInteractiveSubNodes(node: FlowNode): SubNode[] {
 	return getSortedSubNodes(node).filter((sn) => sn.interactive && !sn.hidden);
 }
 
-function generateVarDeclaration(v: FlowVariable, profileCount: number = 0): string {
+function generateVarDeclaration(v: FlowVariable, profileCount: number = 0): string[] {
 	// Per-profile variables become arrays when multiple profiles exist
 	if (v.perProfile && profileCount > 1 && v.type !== 'string') {
-		const defaults = Array(profileCount).fill(v.defaultValue).join(', ');
-		return `${v.type} ${v.name}[${profileCount}] = { ${defaults} };`;
+		const lines = [`${v.type} ${v.name}[${profileCount}];`];
+		for (let i = 0; i < profileCount; i++) {
+			lines.push(`${v.name}[${i}] = ${v.defaultValue};`);
+		}
+		return lines;
 	}
 	if (v.type === 'string') {
 		const size = v.arraySize ?? 32;
@@ -1072,11 +1075,15 @@ function generateVarDeclaration(v: FlowVariable, profileCount: number = 0): stri
 			const chars = Array.from(defaultStr).map((c) => c.charCodeAt(0));
 			chars.push(0);
 			while (chars.length < size) chars.push(0);
-			return `int8 ${v.name}[${size}] = { ${chars.slice(0, size).join(', ')} };`;
+			const lines = [`int8 ${v.name}[${size}];`];
+			for (let i = 0; i < size; i++) {
+				lines.push(`${v.name}[${i}] = ${chars[i]};`);
+			}
+			return lines;
 		}
-		return `int8 ${v.name}[${size}];`;
+		return [`int8 ${v.name}[${size}];`];
 	}
-	return `${v.type} ${v.name} = ${v.defaultValue};`;
+	return [`${v.type} ${v.name} = ${v.defaultValue};`];
 }
 
 function sanitizeName(name: string): string {

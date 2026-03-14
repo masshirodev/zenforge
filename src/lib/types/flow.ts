@@ -171,6 +171,8 @@ export interface ModuleNodeData {
 	extraVars: Record<string, string>;
 	/** Button/key params from module definition — key: param key, value: selected button constant */
 	params?: Record<string, string>;
+	/** Param types from module definition — key: param key, value: 'button' | 'key' */
+	paramTypes?: Record<string, string>;
 	/** Quick toggle: 1-2 controller buttons (e.g. ["PS5_L2","PS5_UP"]) or a single keyboard key (e.g. ["KEY_F1"]) */
 	quickToggle?: string[];
 	conflicts: string[];
@@ -371,6 +373,20 @@ export interface ProfileSwitchConfig {
 	modifier?: string;
 }
 
+// ==================== Weapon Defaults ====================
+
+export interface WeaponDefaultsConfig {
+	/** Variable names opted-in to per-weapon defaults */
+	enabledVars: string[];
+	/** Sparse overrides: weaponIndex -> { varName -> value }.
+	 *  Only stores values differing from the variable's global default. */
+	overrides: Record<number, Record<string, number>>;
+	/** If true, user's in-game menu changes are remembered per-weapon
+	 *  (uses sparse backup arrays + SPVAR persistence).
+	 *  If false, weapon switch always resets to design-time defaults. */
+	rememberTweaks: boolean;
+}
+
 // ==================== Flow Project (Multi-Flow Container) ====================
 
 export interface FlowProject {
@@ -382,6 +398,8 @@ export interface FlowProject {
 	profiles?: FlowProfile[];
 	/** Profile switch button configuration */
 	profileSwitch?: ProfileSwitchConfig;
+	/** Per-weapon variable defaults. When set, replaces the profile system. */
+	weaponDefaults?: WeaponDefaultsConfig;
 	updatedAt: number;
 }
 
@@ -540,6 +558,10 @@ export function createFlowNode(
 	// Menu-like nodes default to PS5_CIRCLE as back button
 	if (type === 'menu' || type === 'submenu' || type === 'home' || type === 'intro' || type === 'debug') {
 		node.backButton = 'PS5_CIRCLE';
+	}
+	// Submenu nodes default to blocking all inputs
+	if (type === 'submenu') {
+		node.blockInputs = true;
 	}
 	return node;
 }
