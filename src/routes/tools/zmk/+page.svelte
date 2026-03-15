@@ -2,6 +2,7 @@
 	import ToolHeader from '$lib/components/layout/ToolHeader.svelte';
 	import ZmkMappingSelect from '$lib/components/inputs/ZmkMappingSelect.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
+	import { getAppRoot, readBytes, writeBytes } from '$lib/tauri/commands';
 	import {
 		parseZmk,
 		serializeZmk,
@@ -82,7 +83,21 @@
 	// --- File I/O ---
 
 	async function handleLoad() {
-		fileInput.click();
+		try {
+			const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
+			const path = await openDialog({
+				filters: [{ name: 'ZMK Profile', extensions: ['zmk'] }]
+			});
+			if (!path) return;
+			const bytes = await readBytes(path as string);
+			const buffer = new Uint8Array(bytes).buffer;
+			loadFromBuffer(buffer, (path as string).split('/').pop() ?? '');
+			lastSavedPath = path as string;
+			addToast(`Loaded ${zmk!.profileName}`, 'success');
+		} catch {
+			// Fallback to file input if Tauri dialog fails (e.g. dev mode)
+			fileInput.click();
+		}
 	}
 
 	function loadFromBuffer(buffer: ArrayBuffer, name: string) {
@@ -134,21 +149,46 @@
 		}
 	}
 
-	function handleSave() {
+	let lastSavedPath = $state('');
+
+	async function handleSave() {
 		if (!zmk) return;
 		try {
 			const saveZmk = { ...zmk, legacyFormat: false };
 			const buffer = serializeZmk(saveZmk);
-			const blob = new Blob([buffer], { type: 'application/octet-stream' });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = fileName || `${zmk.profileName}.zmk`;
-			a.click();
-			URL.revokeObjectURL(url);
-			addToast('Saved .zmk file', 'success');
+			const bytes = Array.from(new Uint8Array(buffer));
+
+			// Default to workspace/profiles/ directory
+			const appRoot = await getAppRoot();
+			const defaultName = fileName || `${zmk.profileName}.zmk`;
+			const defaultDir = `${appRoot}/profiles`;
+			const defaultPath = lastSavedPath || `${defaultDir}/${defaultName}`;
+
+			const { save } = await import('@tauri-apps/plugin-dialog');
+			const path = await save({
+				defaultPath,
+				filters: [{ name: 'ZMK Profile', extensions: ['zmk'] }]
+			});
+			if (!path) return;
+
+			await writeBytes(path, bytes);
+			lastSavedPath = path;
+			lastLoadedBuffer = buffer.slice(0);
+			const shortName = path.split('/').pop() ?? path;
+			addToast(`Saved ${shortName}`, 'success');
 		} catch (err) {
 			addToast(`Failed to save: ${err}`, 'error');
+		}
+	}
+
+	async function handleOpenFolder() {
+		if (!lastSavedPath) return;
+		try {
+			const dir = lastSavedPath.substring(0, lastSavedPath.lastIndexOf('/'));
+			const { openPath } = await import('@tauri-apps/plugin-opener');
+			await openPath(dir);
+		} catch {
+			// ignore
 		}
 	}
 
@@ -175,11 +215,11 @@
 	}
 
 	function curveToSvgY(y: number): number {
-		return CY + CH - (y / 127) * CH;
+		return CY + CH - (y / 100) * CH;
 	}
 
 	function svgToCurveY(svgY: number): number {
-		return Math.round(Math.max(0, Math.min(127, ((CY + CH - svgY) / CH) * 127)));
+		return Math.round(Math.max(0, Math.min(100, ((CY + CH - svgY) / CH) * 100)));
 	}
 
 	function getSvgPoint(e: MouseEvent): { svgX: number; svgY: number } {
@@ -260,11 +300,11 @@
 			const t = x / 100;
 			let y: number;
 			if (type === 'aggressive') {
-				y = Math.round(Math.pow(t, 0.5) * 127);
+				y = Math.round(Math.pow(t, 0.5) * 100);
 			} else {
 				// smooth S-curve
 				const s = t * t * (3 - 2 * t);
-				y = Math.round(s * 127);
+				y = Math.round(s * 100);
 			}
 			pts.push({ x, y, anchor: true });
 		}
@@ -405,6 +445,17 @@
 					>
 						Save
 					</button>
+					{#if lastSavedPath}
+						<button
+							class="rounded bg-zinc-700 px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-600 hover:text-zinc-200"
+							onclick={handleOpenFolder}
+							title="Open containing folder"
+						>
+							<svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+								<path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+							</svg>
+						</button>
+					{/if}
 					<span class="mx-1 h-5 w-px bg-zinc-700"></span>
 					<button
 						class="rounded px-2 py-1.5 text-xs {buttonLayout === 'ps'
@@ -594,11 +645,11 @@
 												stroke-width="1.5"
 												stroke-linejoin="round"
 												points={profile.curve
-													.map((p) => `${p.x},${100 - (p.y / 127) * 100}`)
+													.map((p) => `${p.x},${100 - p.y}`)
 													.join(' ')}
 											/>
 											{#each profile.curve.filter((p) => p.anchor) as p}
-												<circle cx={p.x} cy={100 - (p.y / 127) * 100} r="2" fill="#fbbf24" />
+												<circle cx={p.x} cy={100 - p.y} r="2" fill="#fbbf24" />
 											{/each}
 										</svg>
 										<div class="mt-2 flex flex-wrap gap-1">
@@ -1113,8 +1164,7 @@
 												text-anchor="middle">{gx}</text
 											>
 										{/each}
-										{#each [0, 25, 50, 75, 100] as gyPct}
-											{@const gy = Math.round((gyPct / 100) * 127)}
+										{#each [0, 25, 50, 75, 100] as gy}
 											{@const y = curveToSvgY(gy)}
 											<line
 												x1={CX}
@@ -1129,7 +1179,7 @@
 												y={y + 3}
 												fill="#52525b"
 												font-size="10"
-												text-anchor="end">{gyPct}</text
+												text-anchor="end">{gy}</text
 											>
 										{/each}
 
@@ -1155,7 +1205,7 @@
 											x1={curveToSvgX(0)}
 											y1={curveToSvgY(0)}
 											x2={curveToSvgX(100)}
-											y2={curveToSvgY(127)}
+											y2={curveToSvgY(100)}
 											stroke="#3f3f46"
 											stroke-width="1"
 											stroke-dasharray="4 4"
@@ -1213,7 +1263,7 @@
 												y={ty - 1}
 												fill="#e4e4e7"
 												font-size="10"
-												text-anchor="middle">{tp.x}, {Math.round((tp.y / 127) * 100)}</text
+												text-anchor="middle">{tp.x}, {tp.y}</text
 											>
 										{/if}
 
@@ -1238,7 +1288,7 @@
 											<span
 												class="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500"
 											>
-												{p.x}:{Math.round((p.y / 127) * 100)}
+												{p.x}:{p.y}
 											</span>
 										{/each}
 									</div>

@@ -27,6 +27,18 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, &content).map_err(|e| format!("Failed to write file: {}", e))
 }
 
+/// Read binary data from a file
+#[tauri::command]
+pub fn read_bytes(path: String) -> Result<Vec<u8>, String> {
+    std::fs::read(&path).map_err(|e| format!("Failed to read file: {}", e))
+}
+
+/// Write binary data to a file
+#[tauri::command]
+pub fn write_bytes(path: String, data: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, &data).map_err(|e| format!("Failed to write file: {}", e))
+}
+
 /// Read the file tree for a game directory
 #[tauri::command]
 pub fn read_file_tree(path: String) -> Result<Vec<FileTreeEntry>, String> {

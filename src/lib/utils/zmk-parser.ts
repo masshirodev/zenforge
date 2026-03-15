@@ -416,14 +416,14 @@ export function isMappingEmpty(m: InputMapping): boolean {
 	return m.type === InputDevice.None;
 }
 
-/** Create a linear ballistic curve (output % matches input %) */
+/** Create a linear ballistic curve (output matches input) */
 export function linearCurve(): CurvePoint[] {
 	const points: CurvePoint[] = [];
 	for (let i = 0; i < CURVE_POINTS; i++) {
 		const x = i * CURVE_X_STEP;
 		points.push({
 			x,
-			y: Math.round((x / 100) * 127),
+			y: x,
 			anchor: true
 		});
 	}

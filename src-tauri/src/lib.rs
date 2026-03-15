@@ -59,6 +59,8 @@ pub fn run() {
             commands::config::save_game_config,
             commands::config::read_file,
             commands::config::write_file,
+            commands::config::read_bytes,
+            commands::config::write_bytes,
             commands::config::read_file_tree,
             commands::config::create_standalone_file,
             commands::config::delete_file,

@@ -135,6 +135,14 @@ export async function writeFile(path: string, content: string): Promise<void> {
 	return invoke<void>('write_file', { path, content });
 }
 
+export async function readBytes(path: string): Promise<number[]> {
+	return invoke<number[]>('read_bytes', { path });
+}
+
+export async function writeBytes(path: string, data: number[]): Promise<void> {
+	return invoke<void>('write_bytes', { path, data });
+}
+
 export async function importFiles(gamePath: string, filePaths: string[]): Promise<string[]> {
 	return invoke<string[]>('import_files', { gamePath, filePaths });
 }
