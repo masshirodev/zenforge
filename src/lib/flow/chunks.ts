@@ -119,8 +119,8 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 			type: 'submenu',
 			label: 'Settings',
 			variables: [
-				{ name: 'Setting1', type: 'int', defaultValue: 0, persist: true },
-				{ name: 'Setting2', type: 'int', defaultValue: 0, persist: true },
+				{ name: 'Setting1', type: 'bool', defaultValue: 0, persist: true, min: 0, max: 1 },
+				{ name: 'Setting2', type: 'bool', defaultValue: 0, persist: true, min: 0, max: 1 },
 			],
 			gpcCode: '',
 			onEnter: '',

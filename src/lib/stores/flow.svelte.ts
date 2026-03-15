@@ -20,7 +20,7 @@ import {
 	createFlowEdge,
 	createSubNode,
 } from '$lib/types/flow';
-import { migrateFlowGraphV1toV2, ensureFlowProjectFlows, migrateKeyboardMappings } from '$lib/flow/migration';
+import { migrateFlowGraphV1toV2, ensureFlowProjectFlows, migrateKeyboardMappings, migrateBoolVariables } from '$lib/flow/migration';
 import { syncModuleMenus } from '$lib/flow/auto-link';
 import { getSubNodeDef } from '$lib/flow/subnodes/registry';
 
@@ -192,7 +192,13 @@ export function loadGraph(graph: FlowGraph, gamePath: string) {
 export function loadProject(project: FlowProject, gamePath: string) {
 	const ensured = ensureFlowProjectFlows(project);
 	// Migrate each flow graph to v2, then migrate keyboard module data
-	ensured.flows = ensured.flows.map((f) => migrateKeyboardMappings(migrateFlowGraphV1toV2(f)));
+	ensured.flows = ensured.flows.map((f) => migrateBoolVariables(migrateKeyboardMappings(migrateFlowGraphV1toV2(f))));
+	// Migrate shared variables too
+	for (const v of ensured.sharedVariables) {
+		if (v.type !== 'bool' && v.min === 0 && v.max === 1 && (v.defaultValue === 0 || v.defaultValue === 1)) {
+			v.type = 'bool';
+		}
+	}
 	state.project = ensured;
 	state.activeFlowType = 'menu';
 	state.gamePath = gamePath;
@@ -744,15 +750,16 @@ export function addSubNode(nodeId: string, type: SubNodeType, label: string): Su
 			varName = `${baseVarName}_${suffix++}`;
 		}
 
+		const isBool = type === 'toggle-item';
 		node.variables = [
 			...node.variables,
 			{
 				name: varName,
-				type: 'int' as const,
+				type: isBool ? 'bool' : 'int',
 				defaultValue: 0,
 				persist: false,
-				min: type === 'value-item' ? 0 : undefined,
-				max: type === 'value-item' ? 100 : undefined,
+				min: isBool ? 0 : type === 'value-item' ? 0 : undefined,
+				max: isBool ? 1 : type === 'value-item' ? 100 : undefined,
 			},
 		];
 		sn.boundVariable = varName;

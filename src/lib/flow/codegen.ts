@@ -40,6 +40,10 @@ export function flowVarsToPersistVars(vars: FlowVariable[], profileCount: number
 		if (min == null || max == null) {
 			// Infer range from type when not explicitly set
 			switch (v.type) {
+				case 'bool':
+					min = 0;
+					max = 1;
+					break;
 				case 'int8':
 					min = min ?? -128;
 					max = max ?? 127;
@@ -1060,9 +1064,10 @@ function getInteractiveSubNodes(node: FlowNode): SubNode[] {
 }
 
 function generateVarDeclaration(v: FlowVariable, profileCount: number = 0): string[] {
+	const gpcType = v.type === 'bool' ? 'int' : v.type;
 	// Per-profile variables become arrays when multiple profiles exist
 	if (v.perProfile && profileCount > 1 && v.type !== 'string') {
-		const lines = [`${v.type} ${v.name}[${profileCount}];`];
+		const lines = [`${gpcType} ${v.name}[${profileCount}];`];
 		for (let i = 0; i < profileCount; i++) {
 			lines.push(`${v.name}[${i}] = ${v.defaultValue};`);
 		}
@@ -1083,7 +1088,7 @@ function generateVarDeclaration(v: FlowVariable, profileCount: number = 0): stri
 		}
 		return [`int8 ${v.name}[${size}];`];
 	}
-	return [`${v.type} ${v.name} = ${v.defaultValue};`];
+	return [`${gpcType} ${v.name} = ${v.defaultValue};`];
 }
 
 function sanitizeName(name: string): string {

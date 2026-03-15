@@ -16,7 +16,7 @@ export type FlowNodeType =
 	| 'module'
 	| 'debug';
 
-export type FlowVariableType = 'int' | 'int8' | 'int16' | 'int32' | 'string';
+export type FlowVariableType = 'int' | 'int8' | 'int16' | 'int32' | 'bool' | 'string';
 
 // ==================== Sub-Node Types (v2) ====================
 

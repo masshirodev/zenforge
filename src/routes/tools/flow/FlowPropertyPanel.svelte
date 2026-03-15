@@ -727,7 +727,11 @@
 		const vars = [...selectedNode.variables];
 		const current = vars[index];
 		if (updates.type && updates.type !== current.type) {
-			if (updates.type === 'string' && typeof current.defaultValue !== 'string') {
+			if (updates.type === 'bool') {
+				updates.min = 0;
+				updates.max = 1;
+				updates.defaultValue = typeof current.defaultValue === 'number' ? (current.defaultValue ? 1 : 0) : 0;
+			} else if (updates.type === 'string' && typeof current.defaultValue !== 'string') {
 				updates.defaultValue = '';
 				updates.arraySize = 32;
 			} else if (updates.type !== 'string' && typeof current.defaultValue === 'string') {
@@ -1947,6 +1951,7 @@
 								value={variable.type}
 								onchange={(e) => updateVariable(i, { type: (e.target as HTMLSelectElement).value as FlowVariableType })}
 							>
+								<option value="bool">bool</option>
 								<option value="int">int</option>
 								<option value="int8">int8</option>
 								<option value="int16">int16</option>
@@ -1962,29 +1967,41 @@
 							</button>
 						</div>
 						<div class="mb-1 ml-1 flex items-center gap-1">
-							<span class="text-[10px] text-zinc-500">Default</span>
-							<input
-								type="number"
-								class="w-16 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
-								value={typeof variable.defaultValue === 'number' ? variable.defaultValue : 0}
-								onchange={(e) => updateVariable(i, { defaultValue: parseInt((e.target as HTMLInputElement).value) || 0 })}
-							/>
-							<span class="text-[10px] text-zinc-500">Min</span>
-							<input
-								type="number"
-								class="w-14 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
-								value={variable.min ?? ''}
-								placeholder="—"
-								onchange={(e) => { const v = (e.target as HTMLInputElement).value; updateVariable(i, { min: v === '' ? undefined : parseInt(v) }); }}
-							/>
-							<span class="text-[10px] text-zinc-500">Max</span>
-							<input
-								type="number"
-								class="w-14 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
-								value={variable.max ?? ''}
-								placeholder="—"
-								onchange={(e) => { const v = (e.target as HTMLInputElement).value; updateVariable(i, { max: v === '' ? undefined : parseInt(v) }); }}
-							/>
+							{#if variable.type === 'bool'}
+								<span class="text-[10px] text-zinc-500">Default</span>
+								<button
+									class="rounded px-3 py-0.5 text-xs font-medium {variable.defaultValue
+										? 'bg-emerald-600/30 text-emerald-400'
+										: 'bg-zinc-700/50 text-zinc-500'}"
+									onclick={() => updateVariable(i, { defaultValue: variable.defaultValue ? 0 : 1 })}
+								>
+									{variable.defaultValue ? 'ON' : 'OFF'}
+								</button>
+							{:else}
+								<span class="text-[10px] text-zinc-500">Default</span>
+								<input
+									type="number"
+									class="w-16 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
+									value={typeof variable.defaultValue === 'number' ? variable.defaultValue : 0}
+									onchange={(e) => updateVariable(i, { defaultValue: parseInt((e.target as HTMLInputElement).value) || 0 })}
+								/>
+								<span class="text-[10px] text-zinc-500">Min</span>
+								<input
+									type="number"
+									class="w-14 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
+									value={variable.min ?? ''}
+									placeholder="—"
+									onchange={(e) => { const v = (e.target as HTMLInputElement).value; updateVariable(i, { min: v === '' ? undefined : parseInt(v) }); }}
+								/>
+								<span class="text-[10px] text-zinc-500">Max</span>
+								<input
+									type="number"
+									class="w-14 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
+									value={variable.max ?? ''}
+									placeholder="—"
+									onchange={(e) => { const v = (e.target as HTMLInputElement).value; updateVariable(i, { max: v === '' ? undefined : parseInt(v) }); }}
+								/>
+							{/if}
 						</div>
 						<div class="mb-1 ml-1 flex items-center gap-2">
 							<label class="flex items-center gap-1 text-[10px] text-zinc-500">
@@ -2527,6 +2544,7 @@
 							value={variable.type}
 							onchange={(e) => updateVariable(i, { type: (e.target as HTMLSelectElement).value as FlowVariableType })}
 						>
+							<option value="bool">bool</option>
 							<option value="int">int</option>
 							<option value="int8">int8</option>
 							<option value="int16">int16</option>
@@ -2574,29 +2592,41 @@
 						</div>
 					{:else}
 						<div class="mb-1 ml-1 flex items-center gap-1">
-							<span class="text-[10px] text-zinc-500">Default</span>
-							<input
-								type="number"
-								class="w-16 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
-								value={typeof variable.defaultValue === 'number' ? variable.defaultValue : 0}
-								onchange={(e) => updateVariable(i, { defaultValue: parseInt((e.target as HTMLInputElement).value) || 0 })}
-							/>
-							<span class="text-[10px] text-zinc-500">Min</span>
-							<input
-								type="number"
-								class="w-14 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
-								value={variable.min ?? ''}
-								placeholder="—"
-								onchange={(e) => { const v = (e.target as HTMLInputElement).value; updateVariable(i, { min: v === '' ? undefined : parseInt(v) }); }}
-							/>
-							<span class="text-[10px] text-zinc-500">Max</span>
-							<input
-								type="number"
-								class="w-14 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
-								value={variable.max ?? ''}
-								placeholder="—"
-								onchange={(e) => { const v = (e.target as HTMLInputElement).value; updateVariable(i, { max: v === '' ? undefined : parseInt(v) }); }}
-							/>
+							{#if variable.type === 'bool'}
+								<span class="text-[10px] text-zinc-500">Default</span>
+								<button
+									class="rounded px-3 py-0.5 text-xs font-medium {variable.defaultValue
+										? 'bg-emerald-600/30 text-emerald-400'
+										: 'bg-zinc-700/50 text-zinc-500'}"
+									onclick={() => updateVariable(i, { defaultValue: variable.defaultValue ? 0 : 1 })}
+								>
+									{variable.defaultValue ? 'ON' : 'OFF'}
+								</button>
+							{:else}
+								<span class="text-[10px] text-zinc-500">Default</span>
+								<input
+									type="number"
+									class="w-16 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
+									value={typeof variable.defaultValue === 'number' ? variable.defaultValue : 0}
+									onchange={(e) => updateVariable(i, { defaultValue: parseInt((e.target as HTMLInputElement).value) || 0 })}
+								/>
+								<span class="text-[10px] text-zinc-500">Min</span>
+								<input
+									type="number"
+									class="w-14 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
+									value={variable.min ?? ''}
+									placeholder="—"
+									onchange={(e) => { const v = (e.target as HTMLInputElement).value; updateVariable(i, { min: v === '' ? undefined : parseInt(v) }); }}
+								/>
+								<span class="text-[10px] text-zinc-500">Max</span>
+								<input
+									type="number"
+									class="w-14 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 focus:border-emerald-500 focus:outline-none"
+									value={variable.max ?? ''}
+									placeholder="—"
+									onchange={(e) => { const v = (e.target as HTMLInputElement).value; updateVariable(i, { max: v === '' ? undefined : parseInt(v) }); }}
+								/>
+							{/if}
 						</div>
 						<div class="mb-1 ml-1 flex items-center gap-2">
 							<label class="flex items-center gap-1 text-[10px] text-zinc-500">

@@ -606,7 +606,7 @@
 										<div class="min-h-0 flex-1 space-y-1 overflow-y-auto">
 											{#each CONTROLLER_SLOTS as slot, i}
 												<div
-													class="flex items-center gap-2 rounded px-3 py-1.5 {mappings[i].type === InputDevice.None ? 'opacity-40' : 'bg-zinc-900'}"
+													class="flex items-center gap-2 rounded px-3 py-1.5 {mappings[i].type === InputDevice.None ? '' : 'bg-zinc-900'}"
 												>
 													<span class="w-20 shrink-0 text-xs font-medium text-zinc-500"
 														>{getSlotDisplayName(slot, buttonLayout)}</span
@@ -655,7 +655,7 @@
 										<div class="mt-2 flex flex-wrap gap-1">
 											{#each profile.curve.filter((p) => p.anchor) as p}
 												<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
-													{p.x},{p.y}
+													{p.x}:{p.y}
 												</span>
 											{/each}
 										</div>

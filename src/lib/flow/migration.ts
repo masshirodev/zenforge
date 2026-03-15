@@ -1,4 +1,4 @@
-import type { FlowGraph, FlowProject, SubNode } from '$lib/types/flow';
+import type { FlowGraph, FlowProject, FlowVariable, SubNode } from '$lib/types/flow';
 import { createEmptyFlowGraph } from '$lib/types/flow';
 import { parseKeyboardMappings } from '$lib/utils/keyboard-parser';
 
@@ -135,6 +135,49 @@ export function migrateFlowGraphV1toV2(graph: FlowGraph): FlowGraph {
 	}
 
 	return migrated;
+}
+
+/**
+ * Migrates toggle variables from 'int' to 'bool' type.
+ * Detects toggles by:
+ *   1. min=0, max=1 with defaultValue 0 or 1
+ *   2. Name ends with 'Status' (module enable vars)
+ *   3. Variable matches a module option with type 'toggle'
+ */
+export function migrateBoolVariables(graph: FlowGraph): FlowGraph {
+	// Collect toggle variable names from module node options
+	const moduleToggleVars = new Set<string>();
+	for (const node of graph.nodes) {
+		if (node.moduleData) {
+			// The enable variable is always a toggle
+			if (node.moduleData.enableVariable) {
+				moduleToggleVars.add(node.moduleData.enableVariable);
+			}
+			// Check each option's type
+			for (const opt of node.moduleData.options ?? []) {
+				if (opt.type === 'toggle') {
+					moduleToggleVars.add(opt.variable);
+				}
+			}
+		}
+	}
+
+	function upgrade(v: FlowVariable) {
+		if (v.type === 'bool') return;
+		const isBoolRange = v.min === 0 && v.max === 1 && (v.defaultValue === 0 || v.defaultValue === 1);
+		const isModuleToggle = moduleToggleVars.has(v.name);
+		const isStatusVar = v.name.endsWith('Status') && (v.defaultValue === 0 || v.defaultValue === 1);
+		if (isBoolRange || isModuleToggle || isStatusVar) {
+			v.type = 'bool';
+			v.min = 0;
+			v.max = 1;
+		}
+	}
+	for (const v of graph.globalVariables) upgrade(v);
+	for (const node of graph.nodes) {
+		for (const v of node.variables) upgrade(v);
+	}
+	return graph;
 }
 
 /**

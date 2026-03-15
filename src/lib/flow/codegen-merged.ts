@@ -389,6 +389,11 @@ export function generateMergedFlowGpc(project: FlowProject, options?: MergedFlow
 			lines.push(...gameplayResult.initCode);
 		}
 
+		// Init weapon default arrays before Flow_Load so persistence can overwrite them
+		if (weaponDefaultsResult && weaponDefaultsResult.hasInitFunction) {
+			lines.push(`    InitWeaponDefaults();`);
+		}
+
 		if (combinedPersistVars.length > 0) {
 			lines.push(`    Flow_Load();`);
 		}
@@ -568,8 +573,8 @@ export function collectCombinedPersistVars(
 				sparseArray: {
 					countExpr: 'WEAPON_COUNT',
 					maxCount: 'WEAPON_COUNT',
-					indexVar: `_bp_wd_i_${varName}`,
-					countVar: `_bp_wd_c_${varName}`,
+					indexVar: '_bp_loop_i',
+					countVar: '_bp_sparse_count',
 					stride: 1,
 				},
 			});
@@ -583,8 +588,9 @@ export function collectCombinedPersistVars(
 // ==================== Helpers ====================
 
 function generateVarDecl(v: FlowVariable, profileCount: number = 0): string[] {
+	const gpcType = v.type === 'bool' ? 'int' : v.type;
 	if (v.perProfile && profileCount > 1 && v.type !== 'string') {
-		const lines = [`${v.type} ${v.name}[${profileCount}];`];
+		const lines = [`${gpcType} ${v.name}[${profileCount}];`];
 		for (let i = 0; i < profileCount; i++) {
 			lines.push(`${v.name}[${i}] = ${v.defaultValue};`);
 		}
@@ -594,7 +600,7 @@ function generateVarDecl(v: FlowVariable, profileCount: number = 0): string[] {
 		const size = v.arraySize ?? 32;
 		return [`int8 ${v.name}[${size}];`];
 	}
-	return [`${v.type} ${v.name} = ${v.defaultValue};`];
+	return [`${gpcType} ${v.name} = ${v.defaultValue};`];
 }
 
 /**

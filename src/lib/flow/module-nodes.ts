@@ -109,7 +109,7 @@ export function createModuleNode(
 	if (!isDataModule) {
 		vars.push({
 			name: enableVar,
-			type: 'int',
+			type: 'bool',
 			defaultValue: statusOption ? statusOption.defaultValue : 0,
 			persist: true,
 			min: 0,
@@ -125,7 +125,7 @@ export function createModuleNode(
 			const isToggle = opt.type === 'toggle';
 			vars.push({
 				name: opt.variable,
-				type: 'int' as const,
+				type: isToggle ? 'bool' : 'int',
 				defaultValue: opt.defaultValue,
 				persist: true,
 				min: isToggle ? 0 : opt.min,

@@ -44,11 +44,10 @@
 	});
 
 	function isToggle(v: FlowVariable): boolean {
-		return (
-			(v.min === undefined || v.min === 0) &&
-			(v.max === undefined || v.max === 1) &&
-			(v.defaultValue === 0 || v.defaultValue === 1)
-		);
+		if (v.type === 'bool') return true;
+		if ((v.defaultValue === 0 || v.defaultValue === 1) && !v.min && (!v.max || v.max === 1))
+			return true;
+		return false;
 	}
 
 	function getProfileOverride(profile: FlowProfile, varName: string): number | undefined {

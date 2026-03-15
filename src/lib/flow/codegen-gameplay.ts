@@ -399,8 +399,9 @@ function generateVarDecl(v: FlowVariable): string {
 		const size = v.arraySize ?? 32;
 		return `int8 ${v.name}[${size}];`;
 	}
+	const gpcType = v.type === 'bool' ? 'int' : v.type;
 	const profile = v.perProfile ? ' [profile]' : '';
-	return `${v.type} ${v.name}${profile} = ${v.defaultValue};`;
+	return `${gpcType} ${v.name}${profile} = ${v.defaultValue};`;
 }
 
 /**
@@ -553,6 +554,7 @@ export interface WeaponDefaultsCodeResult {
 	mainLoopLines: string[];
 	initLines: string[];
 	persistVars: PersistVar[];
+	hasInitFunction: boolean;
 }
 
 /**
@@ -587,6 +589,7 @@ export function generateWeaponDefaultsCode(
 
 	if (config.rememberTweaks) {
 		// "Remember" mode: backup arrays hold per-weapon values
+		const wdInitLines: string[] = [];
 		for (const v of vars) {
 			const arrName = `_wd_${v.name}`;
 			const defaults: number[] = [];
@@ -594,8 +597,16 @@ export function generateWeaponDefaultsCode(
 				defaults.push(config.overrides[i]?.[v.name] ?? (v.defaultValue as number));
 			}
 			varDecls.push(`int ${arrName}[WEAPON_COUNT];`);
-			for (let i = 0; i < defaults.length; i++) {
-				varDecls.push(`${arrName}[${i}] = ${defaults[i]};`);
+			// Check if all defaults are the same value (common case)
+			const allSame = defaults.every((d) => d === defaults[0]);
+			if (allSame) {
+				wdInitLines.push(`    for(_i = 0; _i < WEAPON_COUNT; _i++) {`);
+				wdInitLines.push(`        ${arrName}[_i] = ${defaults[0]};`);
+				wdInitLines.push(`    }`);
+			} else {
+				for (let i = 0; i < defaults.length; i++) {
+					wdInitLines.push(`    ${arrName}[${i}] = ${defaults[i]};`);
+				}
 			}
 
 			// Sparse persistence for backup array
@@ -609,12 +620,24 @@ export function generateWeaponDefaultsCode(
 				sparseArray: {
 					countExpr: 'WEAPON_COUNT',
 					maxCount: 'WEAPON_COUNT',
-					indexVar: `_bp_wd_i_${v.name}`,
-					countVar: `_bp_wd_c_${v.name}`,
+					indexVar: '_bp_loop_i',
+					countVar: '_bp_sparse_count',
 					stride: 1,
 				},
 			});
 		}
+
+		// Check if any for-loop was used; if so, declare the loop variable
+		const needsLoopVar = wdInitLines.some((l) => l.includes('for(_i'));
+		if (needsLoopVar) {
+			varDecls.push('int _i;');
+		}
+
+		// InitWeaponDefaults: populate backup arrays with design-time values
+		functions.push('function InitWeaponDefaults() {');
+		functions.push(...wdInitLines);
+		functions.push('}');
+		functions.push('');
 
 		// ApplyWeaponDefaults: save outgoing, load incoming
 		functions.push('function ApplyWeaponDefaults() {');
@@ -681,6 +704,6 @@ export function generateWeaponDefaultsCode(
 		initLines.push('    _prev_CurrentWeapon = CurrentWeapon;');
 	}
 
-	return { varDecls, functions, mainLoopLines, initLines, persistVars };
+	return { varDecls, functions, mainLoopLines, initLines, persistVars, hasInitFunction: config.rememberTweaks };
 }
 

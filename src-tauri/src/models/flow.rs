@@ -343,7 +343,7 @@ pub struct FlowCondition {
 #[serde(rename_all = "camelCase")]
 pub struct FlowVariable {
     pub name: String,
-    pub r#type: String, // int, int8, int16, int32, string
+    pub r#type: String, // int, int8, int16, int32, bool, string
     #[serde(default)]
     pub default_value: serde_json::Value, // number or string
     #[serde(default)]
