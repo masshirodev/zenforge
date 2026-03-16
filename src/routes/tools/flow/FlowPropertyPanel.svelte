@@ -655,6 +655,19 @@
 			}
 		}
 
+		// Profile system variables (when multiple profiles exist)
+		const profileCount = flowStore.project?.profiles?.length ?? 0;
+		if (profileCount > 1) {
+			if (!seen.has('Flow_CurrentProfile')) {
+				result.push({ name: 'Flow_CurrentProfile', label: 'P - Flow_CurrentProfile' });
+				seen.add('Flow_CurrentProfile');
+			}
+			if (!seen.has('FLOW_PROFILE_COUNT')) {
+				result.push({ name: 'FLOW_PROFILE_COUNT', label: 'P - FLOW_PROFILE_COUNT' });
+				seen.add('FLOW_PROFILE_COUNT');
+			}
+		}
+
 		// Shared variables (tagged S)
 		for (const v of sharedVariables) {
 			if (!seen.has(v.name)) {
