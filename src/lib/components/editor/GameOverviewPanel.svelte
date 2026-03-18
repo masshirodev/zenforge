@@ -87,6 +87,7 @@
 				header_comments: headerComments || undefined
 			});
 			addToast('Header comments saved', 'success', 2000);
+			onMetaChanged?.();
 		} catch (e) {
 			addToast(`Failed to save comments: ${e}`, 'error');
 		} finally {
@@ -362,6 +363,13 @@
 				</button>
 				<button
 					class="rounded border border-zinc-700 px-2.5 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+					onclick={() => { headerComments = settings.defaultHeaderComments || ''; }}
+					title="Load the default header comments saved in settings"
+				>
+					Load Default
+				</button>
+				<button
+					class="rounded border border-zinc-700 px-2.5 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
 					onclick={saveHeaderCommentsAsDefault}
 					title="Save current header comments as the default for newly created games"
 				>
@@ -372,12 +380,24 @@
 		<textarea
 			class="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
 			rows="4"
-			placeholder="Custom comments to include at the top of built files (e.g. author, version notes, credits)"
+			placeholder="Custom comments for built files — use template variables below"
 			bind:value={headerComments}
 		></textarea>
 		<p class="mt-1.5 text-xs text-zinc-600">
 			Each line will be prefixed with <code class="text-zinc-500">//</code> in the output file.
 		</p>
+		<div class="mt-3 rounded border border-zinc-800 bg-zinc-800/40 px-3 py-2">
+			<p class="mb-1.5 text-[11px] font-medium tracking-wider text-zinc-500 uppercase">Template Variables</p>
+			<div class="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+				<span><code class="text-emerald-500">{'{'+'name}'}</code> <span class="text-zinc-500">— Game name</span></span>
+				<span><code class="text-emerald-500">{'{'+'version}'}</code> <span class="text-zinc-500">— Version number</span></span>
+				<span><code class="text-emerald-500">{'{'+'username}'}</code> <span class="text-zinc-500">— Author</span></span>
+				<span><code class="text-emerald-500">{'{'+'gameabbr}'}</code> <span class="text-zinc-500">— Abbreviated name</span></span>
+				<span><code class="text-emerald-500">{'{'+'game_type}'}</code> <span class="text-zinc-500">— Game type</span></span>
+				<span><code class="text-emerald-500">{'{'+'console}'}</code> <span class="text-zinc-500">— Console type</span></span>
+				<span><code class="text-emerald-500">{'{'+'filename}'}</code> <span class="text-zinc-500">— Output filename</span></span>
+			</div>
+		</div>
 	</div>
 {/if}
 

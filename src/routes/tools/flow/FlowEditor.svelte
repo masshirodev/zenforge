@@ -454,8 +454,16 @@
 			markClean();
 
 			// Generate the merged GPC code
-			const gameVersion = gameStore.selectedMeta?.version;
-			const { code: gpcCode, extraFiles } = generateMergedFlowGpc(project, { gameVersion });
+			const meta = gameStore.selectedMeta;
+			const { code: gpcCode, extraFiles } = generateMergedFlowGpc(project, {
+				gameVersion: meta?.version,
+				gameName: meta?.name,
+				filename: meta?.filename,
+				gameType: meta?.game_type,
+				consoleType: meta?.console_type,
+				username: meta?.username,
+				headerComments: meta?.header_comments,
+			});
 
 			// Write main.gpc and any extra files (e.g. recoiltable.gpc)
 			await writeFile(gamePath + '/main.gpc', gpcCode);

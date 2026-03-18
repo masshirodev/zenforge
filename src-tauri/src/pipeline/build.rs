@@ -828,22 +828,23 @@ fn build_game_impl(
     }
 
     // Read optional header comments from game.json
-    let header_comments = {
+    let game_meta = {
         let meta_path = game_dir.join("game.json");
         if meta_path.exists() {
             std::fs::read_to_string(&meta_path)
                 .ok()
                 .and_then(|content| serde_json::from_str::<GameMeta>(&content).ok())
-                .and_then(|meta| meta.header_comments)
         } else {
             None
         }
     };
+    let header_comments = game_meta.as_ref().and_then(|m| m.header_comments.clone());
 
     // Write output
     let mut header = "".to_string();
     if let Some(ref comments) = header_comments {
-        for line in comments.lines() {
+        let substituted = substitute_header_vars(comments, game_meta.as_ref());
+        for line in substituted.lines() {
             header.push_str(&format!("// {}\n", line));
         }
     }
@@ -870,6 +871,25 @@ fn build_game_impl(
 
 /// Resolve the output filename for a game build.
 /// Tries game.json first (flow-based), then falls back to config.toml (legacy).
+/// Substitute template variables in header comments.
+/// Supports: {name}, {filename}, {version}, {game_type}, {console}, {username}
+fn substitute_header_vars(template: &str, meta: Option<&GameMeta>) -> String {
+    match meta {
+        Some(m) => {
+            let gameabbr = normalize_for_filename(&m.name);
+            template
+                .replace("{name}", &m.name)
+                .replace("{filename}", &m.filename)
+                .replace("{version}", &m.version.to_string())
+                .replace("{game_type}", &m.game_type)
+                .replace("{console}", &m.console_type)
+                .replace("{username}", m.username.as_deref().unwrap_or(""))
+                .replace("{gameabbr}", &gameabbr)
+        }
+        None => template.to_string(),
+    }
+}
+
 fn resolve_output_filename(game_dir: &Path) -> Result<String, String> {
     let meta_path = game_dir.join("game.json");
     if meta_path.exists() {

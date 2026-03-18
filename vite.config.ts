@@ -5,6 +5,9 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 
 export default defineConfig({
+	define: {
+		__ZENFORGE_VERSION__: JSON.stringify(process.env.npm_package_version ?? '0.0.0'),
+	},
 	plugins: [
 		tailwindcss(),
 		paraglideVitePlugin({

@@ -11,6 +11,7 @@
 		listGames,
 		buildGame,
 		loadFlowProject,
+		loadGameMeta,
 		startFileServer
 	} from '$lib/tauri/commands';
 	import { generateMergedFlowGpc } from '$lib/flow/codegen-merged';
@@ -106,7 +107,16 @@
 				if (buildQueue[i].game.generation_mode === 'flow') {
 					const flowProject = await loadFlowProject(gamePath);
 					if (flowProject) {
-						const { code: gpcCode, extraFiles } = generateMergedFlowGpc(flowProject);
+						const gameMeta = await loadGameMeta(gamePath);
+						const { code: gpcCode, extraFiles } = generateMergedFlowGpc(flowProject, {
+							gameVersion: gameMeta?.version,
+							gameName: gameMeta?.name,
+							filename: gameMeta?.filename,
+							gameType: gameMeta?.game_type,
+							consoleType: gameMeta?.console_type,
+							username: gameMeta?.username,
+							headerComments: gameMeta?.header_comments,
+						});
 						await writeFile(gamePath + '/main.gpc', gpcCode);
 						for (const [fn, content] of Object.entries(extraFiles)) {
 							if (fn === 'recoiltable.gpc') {

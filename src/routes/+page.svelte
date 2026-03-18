@@ -49,7 +49,8 @@
 		exportGameZip,
 		importGameZip,
 		loadFlowProject,
-		saveFlowProject
+		saveFlowProject,
+		loadGameMeta
 	} from '$lib/tauri/commands';
 	import { onFileChange } from '$lib/tauri/events';
 	import type { BuildResult, FileTreeEntry, SnapshotMeta } from '$lib/tauri/commands';
@@ -757,7 +758,16 @@
 			if (store.selectedGame.generation_mode === 'flow') {
 				const flowProject = await loadFlowProject(gamePath);
 				if (flowProject) {
-					const { code: gpcCode, extraFiles } = generateMergedFlowGpc(flowProject);
+					const gameMeta = await loadGameMeta(gamePath);
+					const { code: gpcCode, extraFiles } = generateMergedFlowGpc(flowProject, {
+						gameVersion: gameMeta?.version,
+						gameName: gameMeta?.name,
+						filename: gameMeta?.filename,
+						gameType: gameMeta?.game_type,
+						consoleType: gameMeta?.console_type,
+						username: gameMeta?.username,
+						headerComments: gameMeta?.header_comments,
+					});
 					await writeFile(gamePath + '/main.gpc', gpcCode);
 					for (const [fileName, content] of Object.entries(extraFiles)) {
 						if (fileName === 'recoiltable.gpc') {
