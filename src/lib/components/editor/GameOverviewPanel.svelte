@@ -73,9 +73,11 @@
 	// --- Header comments editing ---
 	let headerComments = $state('');
 	let commentsSaving = $state(false);
+	let generateModuleInfo = $state(true);
 
 	$effect(() => {
 		headerComments = meta?.header_comments ?? '';
+		generateModuleInfo = meta?.generate_module_info !== false;
 	});
 
 	async function saveHeaderComments() {
@@ -84,7 +86,8 @@
 		try {
 			await saveGameMeta(game.path, {
 				...meta,
-				header_comments: headerComments || undefined
+				header_comments: headerComments || undefined,
+				generate_module_info: generateModuleInfo,
 			});
 			addToast('Header comments saved', 'success', 2000);
 			onMetaChanged?.();
@@ -92,6 +95,21 @@
 			addToast(`Failed to save comments: ${e}`, 'error');
 		} finally {
 			commentsSaving = false;
+		}
+	}
+
+	async function toggleModuleInfo() {
+		if (!meta) return;
+		generateModuleInfo = !generateModuleInfo;
+		try {
+			await saveGameMeta(game.path, {
+				...meta,
+				generate_module_info: generateModuleInfo,
+			});
+			onMetaChanged?.();
+		} catch {
+			// Revert on error
+			generateModuleInfo = !generateModuleInfo;
 		}
 	}
 
@@ -398,6 +416,16 @@
 				<span><code class="text-emerald-500">{'{'+'filename}'}</code> <span class="text-zinc-500">— Output filename</span></span>
 			</div>
 		</div>
+		<label class="mt-3 flex cursor-pointer items-center gap-2">
+			<input
+				type="checkbox"
+				class="rounded border-zinc-600 bg-zinc-800 text-emerald-500 focus:ring-emerald-500"
+				checked={generateModuleInfo}
+				onchange={toggleModuleInfo}
+			/>
+			<span class="text-xs text-zinc-400">Auto-generate module info</span>
+			<span class="text-[10px] text-zinc-600">— navigation, modules, keyboard shortcuts</span>
+		</label>
 	</div>
 {/if}
 

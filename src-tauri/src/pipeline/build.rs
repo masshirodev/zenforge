@@ -838,7 +838,16 @@ fn build_game_impl(
             None
         }
     };
-    let header_comments = game_meta.as_ref().and_then(|m| m.header_comments.clone());
+    // For flow-based games, header comments are already handled by codegen-merged.ts
+    // Only prepend header comments for legacy config-based games
+    let is_flow_game = game_meta.as_ref()
+        .map(|m| m.generation_mode == "flow")
+        .unwrap_or(false);
+    let header_comments = if is_flow_game {
+        None
+    } else {
+        game_meta.as_ref().and_then(|m| m.header_comments.clone())
+    };
 
     // Write output
     let mut header = "".to_string();
@@ -848,7 +857,9 @@ fn build_game_impl(
             header.push_str(&format!("// {}\n", line));
         }
     }
-    header.push('\n');
+    if !header.is_empty() {
+        header.push('\n');
+    }
     let final_content = format!("{}{}", header, expanded);
 
     if let Err(e) = std::fs::write(&output_path, &final_content) {

@@ -767,6 +767,7 @@
 						consoleType: gameMeta?.console_type,
 						username: gameMeta?.username,
 						headerComments: gameMeta?.header_comments,
+						generateModuleInfo: gameMeta?.generate_module_info !== false,
 					});
 					await writeFile(gamePath + '/main.gpc', gpcCode);
 					for (const [fileName, content] of Object.entries(extraFiles)) {

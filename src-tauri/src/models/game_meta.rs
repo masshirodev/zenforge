@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct GameMeta {
     pub name: String,
     pub filename: String,
-    pub version: u32,
+    pub version: f64,
     pub game_type: String,
     pub console_type: String,
     #[serde(default)]
@@ -19,6 +19,9 @@ pub struct GameMeta {
     /// User-defined comments to include in the built output file header
     #[serde(default)]
     pub header_comments: Option<String>,
+    /// Auto-generate module info block in header comments
+    #[serde(default)]
+    pub generate_module_info: Option<bool>,
 }
 
 fn default_generation_mode() -> String {

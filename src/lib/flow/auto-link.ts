@@ -7,6 +7,9 @@ const AUTO_TAG = '__auto_module';
 /** Prefix for chunkRef on auto-created submenu nodes. */
 const AUTO_NODE_PREFIX = '__auto_module:';
 
+/** chunkRef marker for the auto-created parent "Module Settings" node. */
+const AUTO_PARENT_REF = '__auto_module_settings';
+
 /** Legacy tag from the old single-node approach. */
 const LEGACY_TAG = '__auto_module_toggle';
 
@@ -50,14 +53,25 @@ export function syncModuleMenus(project: FlowProject): boolean {
 	const cancelKey = menuFlow.settings.keyboardMapping?.cancel;
 
 	// --- Find or create parent "Module Settings" node ---
-	let parentNode = menuFlow.nodes.find(
-		(n) =>
-			n.label === 'Module Settings' &&
-			(n.subNodes.some((s) => s.config[AUTO_TAG]) ||
-				n.subNodes.some((s) => s.config[LEGACY_TAG]))
-	);
+	// Primary lookup by chunkRef; fall back to label match for pre-existing projects
+	let parentNode = menuFlow.nodes.find((n) => n.chunkRef === AUTO_PARENT_REF);
+	if (!parentNode) {
+		parentNode = menuFlow.nodes.find(
+			(n) =>
+				n.label === 'Module Settings' &&
+				(n.subNodes.some((s) => s.config[AUTO_TAG]) ||
+					n.subNodes.some((s) => s.config[LEGACY_TAG]))
+		);
+		// Migrate: stamp the chunkRef so future lookups use the stable marker
+		if (parentNode) {
+			parentNode.chunkRef = AUTO_PARENT_REF;
+			changed = true;
+		}
+	}
 
 	if (!parentNode && moduleNodes.length > 0) {
+		// Don't recreate if the user intentionally deleted it
+		if (menuFlow.moduleSettingsNodeSuppressed) return changed;
 		parentNode = createParentSettingsNode(menuFlow);
 		menuFlow.nodes.push(parentNode);
 		changed = true;
@@ -270,6 +284,11 @@ export function syncModuleMenus(project: FlowProject): boolean {
 			changed = true;
 		}
 	}
+	// Clear parent suppression when no modules with options remain (fresh start)
+	if (menuFlow.moduleSettingsNodeSuppressed && moduleNodes.length === 0) {
+		menuFlow.moduleSettingsNodeSuppressed = undefined;
+		changed = true;
+	}
 
 	// --- Remove edges whose source sub-node no longer exists ---
 	const allSubNodeIds = new Set(menuFlow.nodes.flatMap((n) => n.subNodes.map((s) => s.id)));
@@ -384,7 +403,7 @@ function createParentSettingsNode(menuFlow: FlowGraph): FlowNode {
 		oledWidgets: [],
 		stackOffsetX: 0,
 		stackOffsetY: 0,
-		chunkRef: null,
+		chunkRef: AUTO_PARENT_REF,
 	};
 }
 

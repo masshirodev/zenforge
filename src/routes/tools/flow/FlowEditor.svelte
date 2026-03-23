@@ -54,6 +54,7 @@
 		removeSubNode,
 		updateSubNode,
 		reorderSubNodes,
+		reorderSubNodesByGroups,
 		undo,
 		redo,
 		getProfiles,
@@ -463,6 +464,7 @@
 				consoleType: meta?.console_type,
 				username: meta?.username,
 				headerComments: meta?.header_comments,
+				generateModuleInfo: meta?.generate_module_info !== false,
 			});
 
 			// Write main.gpc and any extra files (e.g. recoiltable.gpc)
@@ -754,7 +756,7 @@
 			panX={flowStore.canvas.panX}
 			panY={flowStore.canvas.panY}
 			zoom={flowStore.canvas.zoom}
-			isDataFlow={flowStore.activeFlowType === 'data'}
+			flowType={flowStore.activeFlowType}
 			onSelectNode={selectNode}
 			onSelectNodeMulti={selectNodeMulti}
 			onSelectNodesBatch={selectNodesBatch}
@@ -801,7 +803,7 @@
 				</button>
 			</div>
 
-			<div class="min-h-0 flex-1 overflow-y-auto">
+			<div class="scrollbar-none min-h-0 flex-1 overflow-y-auto">
 				{#if rightPanelTab === 'profiles'}
 					<ProfilePanel
 						{profiles}
@@ -832,6 +834,7 @@
 						onRemoveSubNode={removeSubNode}
 						onUpdateSubNode={updateSubNode}
 						onReorderSubNodes={reorderSubNodes}
+						onReorderSubNodeGroups={reorderSubNodesByGroups}
 						onSelectSubNode={selectSubNode}
 						onOpenWeaponData={() => { weaponDataModalOpen = true; }}
 						onOpenWeaponDetection={() => { weaponDetectionModalOpen = true; }}

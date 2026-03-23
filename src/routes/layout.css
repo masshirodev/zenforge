@@ -19,3 +19,10 @@ body {
 .scrollbar-none::-webkit-scrollbar {
 	display: none;
 }
+
+.scrollbar-thin {
+	scrollbar-width: none;
+}
+.scrollbar-thin::-webkit-scrollbar {
+	display: none;
+}

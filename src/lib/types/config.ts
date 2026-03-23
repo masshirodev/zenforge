@@ -97,4 +97,5 @@ export interface GameMeta {
 	generation_mode: string;
 	tags?: string[];
 	header_comments?: string;
+	generate_module_info?: boolean;
 }

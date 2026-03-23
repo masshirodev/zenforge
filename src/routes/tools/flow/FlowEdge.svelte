@@ -118,7 +118,14 @@
 
 	<!-- Label -->
 	{#if conditionLabel}
-		<g transform="translate({midX}, {midY})">
+		<g
+			transform="translate({midX}, {midY})"
+			class="cursor-pointer"
+			onclick={(e) => {
+				e.stopPropagation();
+				onSelect(edge.id);
+			}}
+		>
 			<rect
 				x={-conditionLabel.length * 3 - 4}
 				y="-10"
@@ -134,7 +141,7 @@
 				y="2"
 				fill={selected ? '#fbbf24' : '#a1a1aa'}
 				font-size="9"
-				style="pointer-events: none; user-select: none;"
+				style="user-select: none;"
 			>
 				{conditionLabel}
 			</text>

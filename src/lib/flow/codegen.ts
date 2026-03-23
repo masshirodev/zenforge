@@ -334,6 +334,9 @@ export function generateFlowGpc(
 	sorted.forEach((node, i) => stateIds.set(node.id, i));
 
 	const hasWindowMode = sorted.some((n) => n.scrollMode === 'window');
+	const hasScrollBar = sorted.some(
+		(n) => n.subNodes.some((s) => s.type === 'scroll-bar' && !s.hidden)
+	);
 
 	// Header
 	lines.push(`// ====================================================`);
@@ -357,9 +360,12 @@ export function generateFlowGpc(
 	lines.push(``);
 
 	// Window mode scroll defines (for scroll-bar sub-node auto-source)
-	if (hasWindowMode) {
+	if (hasWindowMode || hasScrollBar) {
 		for (const node of sorted) {
-			if (node.scrollMode !== 'window') continue;
+			const needsDefines =
+				node.scrollMode === 'window' ||
+				node.subNodes.some((s) => s.type === 'scroll-bar' && !s.hidden);
+			if (!needsDefines) continue;
 			const safeName = sanitizeName(node.label);
 			const interactiveSubs = getInteractiveSubNodes(node);
 			lines.push(`define Flow_${safeName}_total_items = ${interactiveSubs.length};`);
@@ -437,7 +443,10 @@ export function generateFlowGpc(
 		const safeName = sanitizeName(node.label);
 		const interactiveSubs = getInteractiveSubNodes(node);
 
-		if (node.variables.length > 0 || interactiveSubs.length > 0) {
+		const hasNodeScrollBar = node.subNodes.some((s) => s.type === 'scroll-bar' && !s.hidden);
+		const hasVars = node.variables.length > 0 || interactiveSubs.length > 0 || hasNodeScrollBar;
+
+		if (hasVars) {
 			lines.push(`// Variables for ${node.label}`);
 		}
 
@@ -455,17 +464,17 @@ export function generateFlowGpc(
 				lines.push(`int ${cursorVar};`);
 				declaredVars.add(cursorVar);
 			}
-			// Auto-declare scroll variable for window mode
-			if (node.scrollMode === 'window') {
-				const scrollVar = `Flow_${safeName}_scroll`;
-				if (!declaredVars.has(scrollVar)) {
-					lines.push(`int ${scrollVar};`);
-					declaredVars.add(scrollVar);
-				}
+		}
+		// Auto-declare scroll variable for window mode or scroll-bar sub-nodes
+		if (node.scrollMode === 'window' || hasNodeScrollBar) {
+			const scrollVar = `Flow_${safeName}_scroll`;
+			if (!declaredVars.has(scrollVar)) {
+				lines.push(`int ${scrollVar};`);
+				declaredVars.add(scrollVar);
 			}
 		}
 
-		if (node.variables.length > 0 || interactiveSubs.length > 0) {
+		if (hasVars) {
 			lines.push(``);
 		}
 

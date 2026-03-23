@@ -91,6 +91,9 @@ pub struct FlowGraph {
     /// Module IDs whose auto-generated menu nodes the user intentionally deleted
     #[serde(default)]
     pub suppressed_module_menus: Option<Vec<String>>,
+    /// True when the user intentionally deleted the auto-created "Module Settings" parent node
+    #[serde(default)]
+    pub module_settings_node_suppressed: Option<bool>,
 }
 
 /// A node in the flow graph representing a state/screen
@@ -216,6 +219,9 @@ pub struct ModuleNodeData {
     /// Input device type: "controller", "kbm", or "any"
     #[serde(default)]
     pub input_device: Option<String>,
+    /// Short one-line description shown in generated header comments
+    #[serde(default)]
+    pub short_description: Option<String>,
 }
 
 /// A user-defined const string array for the Array Builder module

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { FlowGraph, FlowNode as FlowNodeType } from '$lib/types/flow';
+	import type { FlowGraph, FlowNode as FlowNodeType, FlowType } from '$lib/types/flow';
 	import FlowNode from './FlowNode.svelte';
 	import FlowEdge from './FlowEdge.svelte';
 	import { getNodeHeight, getPortPosition, NODE_WIDTH } from '$lib/flow/layout';
@@ -9,7 +9,7 @@
 		selectedNodeIds: string[];
 		selectedEdgeId: string | null;
 		selectedSubNodeId: string | null;
-		isDataFlow?: boolean;
+		flowType?: FlowType;
 		connecting: { sourceNodeId: string; sourcePort: string; sourceSubNodeId?: string | null; mouseX: number; mouseY: number } | null;
 		expandedNodes: Set<string>;
 		panX: number;
@@ -55,7 +55,7 @@
 		onToggleExpand,
 		onPan,
 		onZoom,
-		isDataFlow = false,
+		flowType = 'menu' as FlowType,
 	}: Props = $props();
 
 	let selectedNodeIdSet = $derived(new Set(selectedNodeIds));
@@ -437,7 +437,7 @@
 					selectedSubNodeId={primaryNodeId === node.id ? selectedSubNodeId : null}
 					hasConflict={conflictNodeIds.has(node.id)}
 					isDuplicate={duplicateNodeIds.has(node.id)}
-					{isDataFlow}
+					{flowType}
 					onSelect={handleNodeSelect}
 					onSelectSubNode={onSelectSubNode}
 					onStartConnect={handleStartConnect}

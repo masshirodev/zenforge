@@ -216,6 +216,8 @@ export interface ModuleNodeData {
 	customArrays?: CustomArrayDef[];
 	/** Input device type: "controller", "kbm", or "any" */
 	inputDevice?: string;
+	/** Short one-line description shown in generated header comments */
+	shortDescription?: string;
 }
 
 /** A user-defined const string array for the Array Builder module */
@@ -395,6 +397,8 @@ export interface FlowGraph {
 	updatedAt: number;
 	/** Module IDs whose auto-generated menu nodes the user intentionally deleted */
 	suppressedModuleMenus?: string[];
+	/** True when the user intentionally deleted the auto-created "Module Settings" parent node */
+	moduleSettingsNodeSuppressed?: boolean;
 }
 
 // ==================== Flow Profiles ====================

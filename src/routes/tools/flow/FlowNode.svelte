@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { FlowNode } from '$lib/types/flow';
+	import type { FlowNode, FlowType } from '$lib/types/flow';
 	import { NODE_COLORS, NODE_LABELS } from '$lib/types/flow';
 	import {
 		NODE_WIDTH,
@@ -19,7 +19,7 @@
 		selectedSubNodeId: string | null;
 		hasConflict?: boolean;
 		isDuplicate?: boolean;
-		isDataFlow?: boolean;
+		flowType?: FlowType;
 		onSelect: (nodeId: string) => void;
 		onSelectSubNode: (nodeId: string, subNodeId: string) => void;
 		onStartConnect: (nodeId: string, port: string, e: MouseEvent, subNodeId?: string) => void;
@@ -34,7 +34,7 @@
 		selectedSubNodeId,
 		hasConflict = false,
 		isDuplicate = false,
-		isDataFlow = false,
+		flowType = 'menu' as FlowType,
 		onSelect,
 		onSelectSubNode,
 		onStartConnect,
@@ -46,7 +46,7 @@
 	let height = $derived(isModule ? HEADER_HEIGHT + 62 + FOOTER_HEIGHT : getNodeHeight(node, expanded));
 	let color = $derived(
 		node.moduleData?.flowTarget === 'data' ? '#10b981'
-		: (node.type === 'custom' && isDataFlow) ? '#10b981'
+		: (node.type === 'custom' && flowType === 'data') ? '#10b981'
 		: (NODE_COLORS[node.type] || '#6b7280')
 	);
 	let hasCode = $derived(node.gpcCode.trim().length > 0);
@@ -120,14 +120,14 @@
 		fill={color}
 	/>
 
-	<!-- Initial state indicator -->
-	{#if node.isInitialState}
+	<!-- Initial state indicator (menu flow only) -->
+	{#if node.isInitialState && flowType === 'menu'}
 		<circle cx="12" cy={HEADER_HEIGHT / 2} r="4" fill="#fff" opacity="0.8" />
 	{/if}
 
 	<!-- Node label -->
 	<text
-		x={node.isInitialState ? 22 : 10}
+		x={node.isInitialState && flowType === 'menu' ? 22 : 10}
 		y={HEADER_HEIGHT / 2 + 1}
 		fill="#fff"
 		font-size="11"
@@ -330,21 +330,23 @@
 				>HID</text>
 			{/if}
 
-			<!-- Output port for sub-node (right side) -->
-			<circle
-				cx={NODE_WIDTH}
-				cy={rowY + SUBNODE_ROW_HEIGHT / 2}
-				r={PORT_RADIUS - 1}
-				fill={isSubSelected ? '#292524' : '#27272a'}
-				stroke={isSubSelected ? '#f59e0b' : color}
-				stroke-width="1.5"
-				class="cursor-crosshair"
-				onmousedown={(e) => {
-					e.stopPropagation();
-					e.preventDefault();
-					onStartConnect(node.id, 'right', e, subNode.id);
-				}}
-			/>
+			<!-- Output port for sub-node (right side, menu flow only) -->
+			{#if flowType === 'menu'}
+				<circle
+					cx={NODE_WIDTH}
+					cy={rowY + SUBNODE_ROW_HEIGHT / 2}
+					r={PORT_RADIUS - 1}
+					fill={isSubSelected ? '#292524' : '#27272a'}
+					stroke={isSubSelected ? '#f59e0b' : color}
+					stroke-width="1.5"
+					class="cursor-crosshair"
+					onmousedown={(e) => {
+						e.stopPropagation();
+						e.preventDefault();
+						onStartConnect(node.id, 'right', e, subNode.id);
+					}}
+				/>
+			{/if}
 		{/each}
 
 		<!-- "+N more" indicator when collapsed -->
@@ -440,37 +442,39 @@
 		</g>
 	{/if}
 
-	<!-- Input port (left, beside title) -->
-	<circle
-		cx={0}
-		cy={HEADER_HEIGHT / 2}
-		r={PORT_RADIUS}
-		fill="#27272a"
-		stroke="#71717a"
-		stroke-width="1.5"
-		class="cursor-crosshair"
-		onmousedown={(e) => {
-			e.stopPropagation();
-		}}
-		onmouseup={(e) => {
-			e.stopPropagation();
-			onPortDrop(node.id);
-		}}
-	/>
+	{#if flowType === 'menu'}
+		<!-- Input port (left, beside title) -->
+		<circle
+			cx={0}
+			cy={HEADER_HEIGHT / 2}
+			r={PORT_RADIUS}
+			fill="#27272a"
+			stroke="#71717a"
+			stroke-width="1.5"
+			class="cursor-crosshair"
+			onmousedown={(e) => {
+				e.stopPropagation();
+			}}
+			onmouseup={(e) => {
+				e.stopPropagation();
+				onPortDrop(node.id);
+			}}
+		/>
 
-	<!-- Node-level output port (right, in footer area) -->
-	<circle
-		cx={NODE_WIDTH}
-		cy={height - FOOTER_HEIGHT / 2}
-		r={PORT_RADIUS}
-		fill="#27272a"
-		stroke={color}
-		stroke-width="1.5"
-		class="cursor-crosshair"
-		onmousedown={(e) => {
-			e.stopPropagation();
-			e.preventDefault();
-			onStartConnect(node.id, 'right', e);
-		}}
-	/>
+		<!-- Node-level output port (right, in footer area) -->
+		<circle
+			cx={NODE_WIDTH}
+			cy={height - FOOTER_HEIGHT / 2}
+			r={PORT_RADIUS}
+			fill="#27272a"
+			stroke={color}
+			stroke-width="1.5"
+			class="cursor-crosshair"
+			onmousedown={(e) => {
+				e.stopPropagation();
+				e.preventDefault();
+				onStartConnect(node.id, 'right', e);
+			}}
+		/>
+	{/if}
 </g>

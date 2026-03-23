@@ -276,7 +276,7 @@ export function removeNode(nodeId: string) {
 	if (!state.graph) return;
 	pushUndo('Remove node');
 
-	// Track removal of auto-generated module submenu nodes so syncModuleMenus won't recreate them
+	// Track removal of auto-generated module nodes so syncModuleMenus won't recreate them
 	const node = state.graph.nodes.find((n) => n.id === nodeId);
 	if (node?.chunkRef?.startsWith('__auto_module:')) {
 		const moduleId = node.chunkRef.slice('__auto_module:'.length);
@@ -286,6 +286,12 @@ export function removeNode(nodeId: string) {
 				...(menuFlow.suppressedModuleMenus ?? []),
 				moduleId,
 			];
+		}
+	}
+	if (node?.chunkRef === '__auto_module_settings') {
+		const menuFlow = state.project?.flows.find((f) => f.flowType === 'menu');
+		if (menuFlow) {
+			menuFlow.moduleSettingsNodeSuppressed = true;
 		}
 	}
 
@@ -309,13 +315,17 @@ export function removeNodes(nodeIds: string[]) {
 	pushUndo('Remove nodes');
 	const idSet = new Set(nodeIds);
 
-	// Track removal of auto-generated module submenu nodes
+	// Track removal of auto-generated module nodes
 	const menuFlow = state.project?.flows.find((f) => f.flowType === 'menu');
 	if (menuFlow) {
 		const suppressedIds: string[] = [];
 		for (const n of state.graph.nodes) {
-			if (idSet.has(n.id) && n.chunkRef?.startsWith('__auto_module:')) {
+			if (!idSet.has(n.id)) continue;
+			if (n.chunkRef?.startsWith('__auto_module:')) {
 				suppressedIds.push(n.chunkRef.slice('__auto_module:'.length));
+			}
+			if (n.chunkRef === '__auto_module_settings') {
+				menuFlow.moduleSettingsNodeSuppressed = true;
 			}
 		}
 		if (suppressedIds.length > 0) {
@@ -825,6 +835,27 @@ export function reorderSubNodes(nodeId: string, fromIndex: number, toIndex: numb
 	const [moved] = sorted.splice(fromIndex, 1);
 	sorted.splice(toIndex, 0, moved);
 	const reordered = sorted.map((sn, i) => ({ ...sn, order: i }));
+
+	state.graph.nodes = state.graph.nodes.map((n) =>
+		n.id === nodeId ? { ...n, subNodes: reordered } : n
+	);
+	state.graph.updatedAt = Date.now();
+	state.dirty = true;
+}
+
+export function reorderSubNodesByGroups(nodeId: string, groupOrder: string[]) {
+	if (!state.graph) return;
+	const node = state.graph.nodes.find((n) => n.id === nodeId);
+	if (!node) return;
+
+	pushUndo('Reorder sub-node groups');
+	const sorted = [...node.subNodes].sort((a, b) => a.order - b.order);
+	const grouped: typeof sorted = [];
+	for (const g of groupOrder) {
+		grouped.push(...sorted.filter((s) => s.group === g));
+	}
+	grouped.push(...sorted.filter((s) => !s.group));
+	const reordered = grouped.map((sn, i) => ({ ...sn, order: i }));
 
 	state.graph.nodes = state.graph.nodes.map((n) =>
 		n.id === nodeId ? { ...n, subNodes: reordered } : n

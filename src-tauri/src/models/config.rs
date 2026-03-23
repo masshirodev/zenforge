@@ -5,7 +5,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameConfig {
     pub filename: String,
-    pub version: u32,
+    pub version: f64,
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
@@ -145,7 +145,7 @@ pub struct GameSummary {
     pub path: String,
     pub game_type: String,
     pub console_type: String,
-    pub version: u32,
+    pub version: f64,
     pub title: String,
     pub module_count: usize,
     /// "flow" for flow-based games, "config" for legacy config-based games

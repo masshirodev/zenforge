@@ -90,6 +90,9 @@ export function createModuleNode(
 		needsWeapondata: moduleDef.needs_weapondata ?? false,
 		flowTarget: moduleDef.flow_target,
 		inputDevice: moduleDef.input_device,
+		shortDescription: moduleDef.description
+			? moduleDef.description.split('\n')[0].replace(/\.$/, '')
+			: undefined,
 	};
 
 	const node = createFlowNode('module', moduleDef.display_name, position);

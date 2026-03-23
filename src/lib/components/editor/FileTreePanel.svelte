@@ -306,7 +306,7 @@
 
 <style>
 	/* Theme-aware tree view hover */
-	:global(.file-tree) .tree-item:hover {
+	.file-tree .tree-item:hover {
 		background: var(--tree-hover) !important;
 	}
 </style>

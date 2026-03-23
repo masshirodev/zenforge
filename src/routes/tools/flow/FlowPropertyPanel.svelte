@@ -55,6 +55,7 @@
 		onRemoveSubNode: (nodeId: string, subNodeId: string) => void;
 		onUpdateSubNode: (nodeId: string, subNodeId: string, updates: Partial<SubNode>) => void;
 		onReorderSubNodes: (nodeId: string, fromIndex: number, toIndex: number) => void;
+		onReorderSubNodeGroups: (nodeId: string, groupOrder: string[]) => void;
 		onSelectSubNode: (nodeId: string, subNodeId: string | null) => void;
 		onOpenWeaponData?: () => void;
 		onOpenWeaponDetection?: () => void;
@@ -80,6 +81,7 @@
 		onRemoveSubNode,
 		onUpdateSubNode,
 		onReorderSubNodes,
+		onReorderSubNodeGroups,
 		onSelectSubNode,
 		onOpenWeaponData,
 		onOpenWeaponDetection,
@@ -257,6 +259,8 @@
 	let editFunctionsCode = $state('');
 	let editModuleComboCode = $state('');
 	let editEnableVariable = $state('');
+	let editModuleId = $state('');
+	let editShortDescription = $state('');
 	let moduleCodeTab = $state<'init' | 'main' | 'functions' | 'combos'>('main');
 	let recoilToolWeaponIdx = $state(0);
 	let isModuleNode = $derived(selectedNode?.type === 'module');
@@ -296,6 +300,8 @@
 		if (editFunctionsCode !== (md.functionsCode ?? '')) { md.functionsCode = editFunctionsCode; changed = true; }
 		if (editModuleComboCode !== md.comboCode) { md.comboCode = editModuleComboCode; changed = true; }
 		if (editEnableVariable !== md.enableVariable) { md.enableVariable = editEnableVariable; changed = true; }
+		if (editModuleId !== md.moduleId) { md.moduleId = editModuleId; changed = true; }
+		if (editShortDescription !== (md.shortDescription ?? '')) { md.shortDescription = editShortDescription || undefined; changed = true; }
 		if (changed) onUpdateNode(nodeId, { moduleData: md });
 	}
 
@@ -310,6 +316,8 @@
 			editFunctionsCode = md?.functionsCode ?? '';
 			editModuleComboCode = md?.comboCode ?? '';
 			editEnableVariable = md?.enableVariable ?? '';
+			editModuleId = md?.moduleId ?? '';
+			editShortDescription = md?.shortDescription ?? '';
 		} else if (!selectedNode || selectedNode.type !== 'module') {
 			if (lastSyncedModuleNodeId) flushModuleEdits(lastSyncedModuleNodeId);
 			lastSyncedModuleNodeId = '';
@@ -326,6 +334,8 @@
 		if (editFunctionsCode !== (md.functionsCode ?? '')) { md.functionsCode = editFunctionsCode; changed = true; }
 		if (editModuleComboCode !== md.comboCode) { md.comboCode = editModuleComboCode; changed = true; }
 		if (editEnableVariable !== md.enableVariable) { md.enableVariable = editEnableVariable; changed = true; }
+		if (editModuleId !== md.moduleId) { md.moduleId = editModuleId; changed = true; }
+		if (editShortDescription !== (md.shortDescription ?? '')) { md.shortDescription = editShortDescription || undefined; changed = true; }
 		if (changed) {
 			onUpdateNode(selectedNode.id, { moduleData: md });
 		}
@@ -797,6 +807,11 @@
 	let dragDropPosition = $state<'before' | 'after'>('after');
 	let dragOverGroup = $state<string | null>(null);
 
+	// Drag and drop state for group reordering
+	let dragGroupName = $state<string | null>(null);
+	let dragOverGroupTarget = $state<string | null>(null);
+	let dragGroupPosition = $state<'before' | 'after'>('after');
+
 	function handleSubNodeDragStart(e: DragEvent, idx: number) {
 		dragSubNodeIdx = idx;
 		if (e.dataTransfer) {
@@ -872,6 +887,48 @@
 		dragOverGroup = null;
 	}
 
+	function handleGroupDragStart(e: DragEvent, groupName: string) {
+		dragGroupName = groupName;
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/x-group', groupName);
+		}
+	}
+
+	function handleGroupReorderDragOver(e: DragEvent, groupName: string) {
+		if (!dragGroupName || dragGroupName === groupName) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dragOverGroupTarget = groupName;
+		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		dragGroupPosition = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+	}
+
+	function handleGroupReorderDrop(e: DragEvent, targetGroupName: string) {
+		e.preventDefault();
+		if (!dragGroupName || dragGroupName === targetGroupName || !selectedNode) {
+			handleGroupDragEnd();
+			return;
+		}
+		const groups = [...subNodeGroups];
+		const fromIdx = groups.indexOf(dragGroupName);
+		const toIdx = groups.indexOf(targetGroupName);
+		if (fromIdx === -1 || toIdx === -1) { handleGroupDragEnd(); return; }
+
+		// Build new group order
+		groups.splice(fromIdx, 1);
+		const insertIdx = dragGroupPosition === 'before' ? groups.indexOf(targetGroupName) : groups.indexOf(targetGroupName) + 1;
+		groups.splice(insertIdx, 0, dragGroupName);
+
+		onReorderSubNodeGroups(selectedNode.id, groups);
+		handleGroupDragEnd();
+	}
+
+	function handleGroupDragEnd() {
+		dragGroupName = null;
+		dragOverGroupTarget = null;
+	}
+
 	function handleSubNodeParamUpdate(key: string, value: unknown) {
 		if (!selectedNode || !selectedSubNode) return;
 		const newConfig = { ...selectedSubNode.config, [key]: value };
@@ -899,7 +956,7 @@
 				</span>
 			</div>
 		</div>
-		<div class="flex-1 overflow-y-auto px-3 py-2">
+		<div class="scrollbar-none flex-1 overflow-y-auto px-3 py-2">
 			<!-- Name -->
 			<div class="mb-3">
 				<label class="mb-1 block text-xs text-zinc-400" for="subnode-label">Name</label>
@@ -1257,7 +1314,7 @@
 		<div class="border-b border-zinc-800 px-3 py-2">
 			<h3 class="text-xs font-medium uppercase tracking-wider text-zinc-500">Module Properties</h3>
 		</div>
-		<div class="flex-1 overflow-y-auto px-3 py-2">
+		<div class="scrollbar-none flex-1 overflow-y-auto px-3 py-2">
 			<!-- Label -->
 			<div class="mb-3">
 				<label class="mb-1 block text-xs text-zinc-400" for="module-label">Label</label>
@@ -1271,16 +1328,38 @@
 				/>
 			</div>
 
-			<!-- Module ID badge -->
+			<!-- Module ID -->
 			{#if selectedNode.moduleData}
 				{@const isData = selectedNode.moduleData.flowTarget === 'data'}
-				<div class="mb-3 flex items-center gap-2">
-					<span class="rounded px-2 py-0.5 text-xs {isData ? 'bg-emerald-950 text-emerald-300' : 'bg-red-950 text-red-300'}">
-						{selectedNode.moduleData.moduleId}
-					</span>
-					<span class="text-xs text-zinc-500">{selectedNode.moduleData.moduleName}</span>
+				<div class="mb-3">
+					<label class="mb-1 block text-xs text-zinc-400" for="module-id">Module ID</label>
+					<div class="flex items-center gap-2">
+						<input
+							id="module-id"
+							type="text"
+							class="w-full rounded border px-2 py-0.5 text-xs {isData ? 'border-emerald-800 bg-emerald-950 text-emerald-300' : 'border-red-800 bg-red-950 text-red-300'} focus:outline-none {isData ? 'focus:border-emerald-500' : 'focus:border-red-500'}"
+							bind:value={editModuleId}
+							onblur={commitModuleData}
+							onkeydown={(e) => { if (e.key === 'Enter') commitModuleData(); }}
+						/>
+						<span class="shrink-0 text-xs text-zinc-500">{selectedNode.moduleData.moduleName}</span>
+					</div>
 				</div>
 			{/if}
+
+			<!-- Short Description (for header comments) -->
+			<div class="mb-3">
+				<label class="mb-1 block text-xs text-zinc-400" for="module-short-desc">Short Description</label>
+				<input
+					id="module-short-desc"
+					type="text"
+					class="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-200 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
+					placeholder="One-line description for header comments"
+					bind:value={editShortDescription}
+					onblur={commitModuleData}
+					onkeydown={(e) => { if (e.key === 'Enter') commitModuleData(); }}
+				/>
+			</div>
 
 			<!-- Conflict Warning -->
 			{#if activeConflicts.length > 0}
@@ -1297,14 +1376,12 @@
 			<!-- Enable Variable (hidden for alwaysActive modules) -->
 			{#if !selectedNode.moduleData?.alwaysActive}
 			<div class="mb-3">
-				<label class="mb-1 block text-xs text-zinc-400" for="module-enable-var">Enable Variable</label>
-				<input
-					id="module-enable-var"
-					type="text"
-					class="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none"
-					bind:value={editEnableVariable}
-					onblur={commitModuleData}
-					onkeydown={(e) => { if (e.key === 'Enter') commitModuleData(); }}
+				<label class="mb-1 block text-xs text-zinc-400">Enable Variable</label>
+				<VariableSelect
+					value={editEnableVariable}
+					options={availableVariables}
+					placeholder="Select enable variable..."
+					onchange={(v) => { editEnableVariable = v; commitModuleData(); }}
 				/>
 				<p class="mt-0.5 text-[10px] text-zinc-600">Toggle variable shared with Menu Flow</p>
 			</div>
@@ -1339,7 +1416,7 @@
 			{/if}
 
 			<!-- Quick Toggle (only for modules with a Status toggle, not data modules) -->
-			{#if selectedNode.moduleData?.enableVariable && selectedNode.moduleData.options.some(o => o.type === 'toggle' && o.name === 'Status')}
+			{#if selectedNode.moduleData?.enableVariable && !selectedNode.moduleData.alwaysActive}
 			{#key selectedNode.id}
 				{@const nodeId = selectedNode.id}
 				{@const md = selectedNode.moduleData}
@@ -2086,7 +2163,7 @@
 		<div class="border-b border-zinc-800 px-3 py-2">
 			<h3 class="text-xs font-medium uppercase tracking-wider text-zinc-500">Node Properties</h3>
 		</div>
-		<div class="flex-1 overflow-y-auto px-3 py-2">
+		<div class="scrollbar-none flex-1 overflow-y-auto px-3 py-2">
 			<!-- OLED Preview + Layout Builder button for menu nodes -->
 			{#if isMenuNode && selectedNode.subNodes.length > 0}
 				<div class="mb-3">
@@ -2256,16 +2333,26 @@
 						<!-- Grouped sub-nodes -->
 						{#each subNodeGroups as groupName}
 							{@const groupSubs = sortedSubNodes.filter(s => s.group === groupName)}
-							<div class="rounded border {dragOverGroup === groupName ? 'border-emerald-500 bg-emerald-900/10' : 'border-zinc-700/50'}">
+							{#if dragOverGroupTarget === groupName && dragGroupName && dragGroupName !== groupName && dragGroupPosition === 'before'}
+								<div class="flex h-5 items-center rounded border border-dashed border-blue-500/70 bg-blue-900/20 px-1.5">
+									<span class="text-[10px] text-blue-500/70">{dragGroupName}</span>
+								</div>
+							{/if}
+							<div
+								class="rounded border {dragOverGroup === groupName ? 'border-emerald-500 bg-emerald-900/10' : dragOverGroupTarget === groupName && dragGroupName ? 'border-blue-500 bg-blue-900/10' : 'border-zinc-700/50'} {dragGroupName === groupName ? 'opacity-30' : ''}"
+								draggable="true"
+								ondragstart={(e) => { e.stopPropagation(); handleGroupDragStart(e, groupName); }}
+								ondragend={handleGroupDragEnd}
+							>
 								<div
-									class="flex w-full cursor-pointer items-center gap-1 rounded-t px-1.5 py-1 text-xs text-zinc-400 hover:bg-zinc-800"
+									class="flex w-full cursor-grab items-center gap-1 rounded-t px-1.5 py-1 text-xs text-zinc-400 hover:bg-zinc-800 active:cursor-grabbing"
 									onclick={() => toggleGroupCollapse(groupName)}
 									role="button"
 									tabindex="0"
 									onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleGroupCollapse(groupName); }}
-									ondragover={(e) => handleGroupDragOver(e, groupName)}
-									ondragleave={handleGroupDragLeave}
-									ondrop={(e) => handleGroupDrop(e, groupName)}
+									ondragover={(e) => { if (dragGroupName) handleGroupReorderDragOver(e, groupName); else handleGroupDragOver(e, groupName); }}
+									ondragleave={() => { dragOverGroupTarget = null; handleGroupDragLeave(); }}
+									ondrop={(e) => { if (dragGroupName) handleGroupReorderDrop(e, groupName); else handleGroupDrop(e, groupName); }}
 								>
 									<svg
 										class="h-3 w-3 transition-transform {collapsedGroups.has(groupName) ? '' : 'rotate-90'}"
@@ -2364,6 +2451,11 @@
 									</div>
 								{/if}
 							</div>
+							{#if dragOverGroupTarget === groupName && dragGroupName && dragGroupName !== groupName && dragGroupPosition === 'after'}
+								<div class="flex h-5 items-center rounded border border-dashed border-blue-500/70 bg-blue-900/20 px-1.5">
+									<span class="text-[10px] text-blue-500/70">{dragGroupName}</span>
+								</div>
+							{/if}
 						{/each}
 
 						<!-- Ungrouped sub-nodes -->
@@ -2772,12 +2864,12 @@
 				</div>
 			</div>
 		</div>
-	{:else if selectedEdge}
-		<!-- ==================== Edge Properties ==================== -->
+	{:else if selectedEdge && flowStore.activeFlowType === 'menu'}
+		<!-- ==================== Edge Properties (menu flows only) ==================== -->
 		<div class="border-b border-zinc-800 px-3 py-2">
 			<h3 class="text-xs font-medium uppercase tracking-wider text-zinc-500">Edge Properties</h3>
 		</div>
-		<div class="flex-1 overflow-y-auto px-3 py-2">
+		<div class="scrollbar-none flex-1 overflow-y-auto px-3 py-2">
 			<!-- Label -->
 			<div class="mb-3">
 				<label class="mb-1 block text-xs text-zinc-400" for="edge-label">Label</label>

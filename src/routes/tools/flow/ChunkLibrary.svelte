@@ -145,7 +145,7 @@
 		/>
 	</div>
 
-	<div class="flex-1 overflow-y-auto px-2">
+	<div class="scrollbar-none flex-1 overflow-y-auto px-2">
 		<!-- Modules section (gameplay flow only) -->
 		{#if flowType !== 'menu'}
 			<div class="mb-1">
@@ -185,17 +185,6 @@
 						{/each}
 						{#if filteredModules.length === 0}
 							<p class="px-2 py-2 text-[10px] text-zinc-600">No modules found</p>
-						{/if}
-						{#if onAddNode}
-							<div class="mt-1 border-t border-zinc-800 pt-1">
-								<button
-									class="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300"
-									onclick={() => onAddNode?.('custom')}
-								>
-									<span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-zinc-500"></span>
-									Custom Node
-								</button>
-							</div>
 						{/if}
 					</div>
 				{/if}

@@ -314,6 +314,7 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 				extraVars: {},
 				conflicts: [],
 				needsWeapondata: false,
+				shortDescription: 'Polling rate (10ms/8ms/4ms/2ms/1ms)',
 			},
 		},
 		edgeTemplates: [],
@@ -333,7 +334,16 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 		nodeTemplate: {
 			type: 'module',
 			label: 'Custom',
-			variables: [],
+			variables: [
+				{
+					name: 'Custom_Enabled',
+					type: 'bool',
+					defaultValue: 0,
+					persist: true,
+					min: 0,
+					max: 1,
+				},
+			],
 			gpcCode: '',
 			onEnter: '',
 			onExit: '',
@@ -342,8 +352,7 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 				moduleId: 'custom',
 				moduleName: 'Custom',
 				triggerCondition: '',
-				enableVariable: '',
-				alwaysActive: true,
+				enableVariable: 'Custom_Enabled',
 				initCode: '',
 				mainCode: '// Add your main loop code here',
 				functionsCode: '// Add your functions here',
@@ -360,6 +369,45 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 		updatedAt: 0,
 	},
 
+	{
+		id: 'builtin-custom-data',
+		name: 'Custom',
+		description:
+			'An empty data module. Rename it and add your custom data definitions.',
+		category: 'utility',
+		tags: ['custom', 'data', 'module', 'blank'],
+		flowType: 'data',
+		nodeTemplate: {
+			type: 'module',
+			label: 'Custom',
+			variables: [],
+			gpcCode: '',
+			onEnter: '',
+			onExit: '',
+			comboCode: '',
+			moduleData: {
+				moduleId: 'custom',
+				moduleName: 'Custom',
+				triggerCondition: '',
+				enableVariable: '',
+				alwaysActive: true,
+				initCode: '',
+				mainCode: '// Add your data code here',
+				functionsCode: '// Add your functions here',
+				comboCode: '',
+				options: [],
+				extraVars: {},
+				conflicts: [],
+				needsWeapondata: false,
+				flowTarget: 'data',
+			},
+		},
+		edgeTemplates: [],
+		parameters: [],
+		createdAt: 0,
+		updatedAt: 0,
+	},
+
 	// ==================== Converted from Code Generators ====================
 
 	{
@@ -368,6 +416,7 @@ export const BUILTIN_CHUNKS: FlowChunk[] = [
 		description: 'A blank custom node with raw GPC code sections for render, onEnter/onExit, and combos.',
 		category: 'utility',
 		tags: ['custom', 'code', 'blank', 'raw'],
+		flowType: 'menu',
 		nodeTemplate: {
 			type: 'custom',
 			label: 'Custom',

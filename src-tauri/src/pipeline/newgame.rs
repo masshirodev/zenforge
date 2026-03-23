@@ -9,7 +9,7 @@ pub struct CreateGameParams {
     pub username: Option<String>,
     pub game_type: String,
     pub console_type: Option<String>,
-    pub version: u32,
+    pub version: f64,
     pub workspace_path: Option<String>,
     pub header_comments: Option<String>,
 }
@@ -63,6 +63,7 @@ pub fn create_game(
         generation_mode: "flow".to_string(),
         tags: None,
         header_comments: params.header_comments.clone(),
+        generate_module_info: None,
     };
 
     let meta_content = serde_json::to_string_pretty(&meta)
