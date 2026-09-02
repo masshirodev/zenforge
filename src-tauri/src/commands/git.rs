@@ -2,6 +2,59 @@ use serde::Serialize;
 use std::path::Path;
 use std::process::Command;
 
+/// Strip surrounding double quotes that git uses for paths with spaces/special chars.
+/// Also handles C-style escape sequences like `\303\251` for UTF-8.
+fn unquote_git_path(s: &str) -> String {
+    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+        let inner = &s[1..s.len() - 1];
+        // Handle C-style octal escapes (e.g. \303\251)
+        let mut result = Vec::new();
+        let bytes = inner.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == b'\\' && i + 3 < bytes.len() && bytes[i + 1].is_ascii_digit() {
+                // Parse octal escape
+                let oct = &inner[i + 1..i + 4];
+                if let Ok(val) = u8::from_str_radix(oct, 8) {
+                    result.push(val);
+                    i += 4;
+                    continue;
+                }
+            }
+            if bytes[i] == b'\\' && i + 1 < bytes.len() {
+                // Simple escapes
+                match bytes[i + 1] {
+                    b'\\' => { result.push(b'\\'); i += 2; continue; }
+                    b'"' => { result.push(b'"'); i += 2; continue; }
+                    b'n' => { result.push(b'\n'); i += 2; continue; }
+                    b't' => { result.push(b'\t'); i += 2; continue; }
+                    _ => {}
+                }
+            }
+            result.push(bytes[i]);
+            i += 1;
+        }
+        String::from_utf8_lossy(&result).to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Resolve the git repo root from a given directory.
+fn repo_root(dir: &Path) -> std::path::PathBuf {
+    let output = git_cmd()
+        .args(["rev-parse", "--show-toplevel"])
+        .current_dir(dir)
+        .output();
+    match &output {
+        Ok(o) if o.status.success() => {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            Path::new(&s).to_path_buf()
+        }
+        _ => dir.to_path_buf(),
+    }
+}
+
 /// Create a `git` command that does not spawn a visible console window on Windows.
 fn git_cmd() -> Command {
     let mut cmd = Command::new("git");
@@ -40,9 +93,11 @@ pub fn git_status(game_path: String) -> Result<Vec<GitFileStatus>, String> {
         return Err(format!("Not a directory: {}", game_path));
     }
 
+    let root = repo_root(game_dir);
+
     let output = git_cmd()
-        .args(["status", "--porcelain", "-uall", "."])
-        .current_dir(game_dir)
+        .args(["status", "--porcelain", "-uall"])
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
 
@@ -60,17 +115,17 @@ pub fn git_status(game_path: String) -> Result<Vec<GitFileStatus>, String> {
         }
         let index_status = line.chars().nth(0).unwrap_or(' ');
         let work_status = line.chars().nth(1).unwrap_or(' ');
-        let file_path = line[3..].trim();
+        let raw_path = line[3..].trim();
 
         // Handle renames: "R  old -> new"
-        let file_path = if file_path.contains(" -> ") {
-            file_path.split(" -> ").last().unwrap_or(file_path)
+        let raw_path = if raw_path.contains(" -> ") {
+            raw_path.split(" -> ").last().unwrap_or(raw_path)
         } else {
-            file_path
+            raw_path
         };
 
-        // Build absolute path
-        let abs_path = game_dir.join(file_path).to_string_lossy().to_string();
+        let file_path = unquote_git_path(raw_path);
+        let abs_path = root.join(&file_path).to_string_lossy().to_string();
 
         // Determine the most relevant status character
         let status = if index_status == '?' || work_status == '?' {
@@ -99,9 +154,10 @@ pub fn git_status(game_path: String) -> Result<Vec<GitFileStatus>, String> {
 /// Get the diff for a specific file
 #[tauri::command]
 pub fn git_diff_file(game_path: String, file_path: String) -> Result<String, String> {
+    let root = repo_root(Path::new(&game_path));
     let output = git_cmd()
         .args(["diff", "--", &file_path])
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to run git diff: {}", e))?;
 
@@ -111,12 +167,13 @@ pub fn git_diff_file(game_path: String, file_path: String) -> Result<String, Str
 /// Stage files for commit
 #[tauri::command]
 pub fn git_stage(game_path: String, file_paths: Vec<String>) -> Result<(), String> {
+    let root = repo_root(Path::new(&game_path));
     let mut args = vec!["add".to_string(), "--".to_string()];
     args.extend(file_paths);
 
     let output = git_cmd()
         .args(&args)
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to run git add: {}", e))?;
 
@@ -129,12 +186,13 @@ pub fn git_stage(game_path: String, file_paths: Vec<String>) -> Result<(), Strin
 /// Unstage files (reset HEAD)
 #[tauri::command]
 pub fn git_unstage(game_path: String, file_paths: Vec<String>) -> Result<(), String> {
+    let root = repo_root(Path::new(&game_path));
     let mut args = vec!["reset".to_string(), "HEAD".to_string(), "--".to_string()];
     args.extend(file_paths);
 
     let output = git_cmd()
         .args(&args)
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to run git reset: {}", e))?;
 
@@ -147,13 +205,14 @@ pub fn git_unstage(game_path: String, file_paths: Vec<String>) -> Result<(), Str
 /// Commit staged changes
 #[tauri::command]
 pub fn git_commit(game_path: String, message: String) -> Result<String, String> {
+    let root = repo_root(Path::new(&game_path));
     if message.trim().is_empty() {
         return Err("Commit message cannot be empty".to_string());
     }
 
     let output = git_cmd()
         .args(["commit", "-m", &message])
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to run git commit: {}", e))?;
 
@@ -179,9 +238,11 @@ pub fn git_status_detailed(game_path: String) -> Result<Vec<GitDetailedStatus>, 
         return Err(format!("Not a directory: {}", game_path));
     }
 
+    let root = repo_root(game_dir);
+
     let output = git_cmd()
-        .args(["status", "--porcelain", "-uall", "."])
-        .current_dir(game_dir)
+        .args(["status", "--porcelain", "-uall"])
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to run git: {}", e))?;
 
@@ -198,15 +259,16 @@ pub fn git_status_detailed(game_path: String) -> Result<Vec<GitDetailedStatus>, 
         }
         let idx = line.chars().nth(0).unwrap_or(' ');
         let wt = line.chars().nth(1).unwrap_or(' ');
-        let file_path = line[3..].trim();
+        let raw_path = line[3..].trim();
 
-        let file_path = if file_path.contains(" -> ") {
-            file_path.split(" -> ").last().unwrap_or(file_path)
+        let raw_path = if raw_path.contains(" -> ") {
+            raw_path.split(" -> ").last().unwrap_or(raw_path)
         } else {
-            file_path
+            raw_path
         };
 
-        let abs_path = game_dir.join(file_path).to_string_lossy().to_string();
+        let file_path = unquote_git_path(raw_path);
+        let abs_path = root.join(&file_path).to_string_lossy().to_string();
 
         results.push(GitDetailedStatus {
             path: abs_path,
@@ -243,9 +305,10 @@ pub struct GitRemote {
 /// List configured remotes
 #[tauri::command]
 pub fn git_remote_list(game_path: String) -> Result<Vec<GitRemote>, String> {
+    let root = repo_root(Path::new(&game_path));
     let output = git_cmd()
         .args(["remote", "-v"])
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to run git remote: {}", e))?;
 
@@ -276,9 +339,10 @@ pub fn git_remote_list(game_path: String) -> Result<Vec<GitRemote>, String> {
 /// Add a remote
 #[tauri::command]
 pub fn git_remote_add(game_path: String, name: String, url: String) -> Result<(), String> {
+    let root = repo_root(Path::new(&game_path));
     let output = git_cmd()
         .args(["remote", "add", &name, &url])
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to add remote: {}", e))?;
 
@@ -291,9 +355,10 @@ pub fn git_remote_add(game_path: String, name: String, url: String) -> Result<()
 /// Remove a remote
 #[tauri::command]
 pub fn git_remote_remove(game_path: String, name: String) -> Result<(), String> {
+    let root = repo_root(Path::new(&game_path));
     let output = git_cmd()
         .args(["remote", "remove", &name])
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to remove remote: {}", e))?;
 
@@ -306,9 +371,10 @@ pub fn git_remote_remove(game_path: String, name: String) -> Result<(), String> 
 /// Get current branch name
 #[tauri::command]
 pub fn git_current_branch(game_path: String) -> Result<String, String> {
+    let root = repo_root(Path::new(&game_path));
     let output = git_cmd()
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to get branch: {}", e))?;
 
@@ -321,6 +387,7 @@ pub fn git_current_branch(game_path: String) -> Result<String, String> {
 /// Push to remote
 #[tauri::command]
 pub fn git_push(game_path: String, remote: String, branch: String, set_upstream: bool) -> Result<String, String> {
+    let root = repo_root(Path::new(&game_path));
     let mut args = vec!["push".to_string()];
     if set_upstream {
         args.push("-u".to_string());
@@ -330,7 +397,7 @@ pub fn git_push(game_path: String, remote: String, branch: String, set_upstream:
 
     let output = git_cmd()
         .args(&args)
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to push: {}", e))?;
 
@@ -345,9 +412,10 @@ pub fn git_push(game_path: String, remote: String, branch: String, set_upstream:
 /// Pull from remote
 #[tauri::command]
 pub fn git_pull(game_path: String, remote: String, branch: String) -> Result<String, String> {
+    let root = repo_root(Path::new(&game_path));
     let output = git_cmd()
         .args(["pull", &remote, &branch])
-        .current_dir(&game_path)
+        .current_dir(&root)
         .output()
         .map_err(|e| format!("Failed to pull: {}", e))?;
 

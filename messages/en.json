@@ -98,6 +98,7 @@
 	"layout_sidebar_tool_dep_graph": "Dep Graph",
 	"layout_sidebar_tool_plugins": "Plugins",
 	"layout_sidebar_tool_compare_games": "Compare Games",
+	"layout_sidebar_tool_git": "Git",
 	"layout_sidebar_tool_simulator": "Combo Simulator",
 	"layout_sidebar_tool_keyboard_mapper": "Mapper",
 	"layout_sidebar_tool_zmk_editor": "M&K Editor",

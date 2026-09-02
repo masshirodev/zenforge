@@ -98,6 +98,7 @@
 	"layout_sidebar_tool_dep_graph": "Grafo de Dependências",
 	"layout_sidebar_tool_plugins": "Plugins",
 	"layout_sidebar_tool_compare_games": "Comparar Jogos",
+	"layout_sidebar_tool_git": "Git",
 	"layout_sidebar_tool_simulator": "Simulador de Combo",
 	"layout_sidebar_tool_keyboard_mapper": "Mapeador",
 	"layout_sidebar_tool_zmk_editor": "Editor M&K",

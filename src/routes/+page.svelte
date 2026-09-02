@@ -45,7 +45,6 @@
 		importFiles,
 		gitStatus,
 		gitDiffFile,
-		gitIsRepo,
 		exportGameZip,
 		importGameZip,
 		loadFlowProject,
@@ -99,7 +98,6 @@
 	import BuildPanel from '$lib/components/editor/BuildPanel.svelte';
 	import TaskRunnerPanel from '$lib/components/editor/TaskRunnerPanel.svelte';
 	import HistoryPanel from '$lib/components/editor/HistoryPanel.svelte';
-	import GitPanel from '$lib/components/editor/GitPanel.svelte';
 	import FlowPersistencePanel from '$lib/components/editor/FlowPersistencePanel.svelte';
 	import FlowDefaultsPanel from '$lib/components/editor/FlowDefaultsPanel.svelte';
 	import { getDiagnosticsStore, getFileSeverityMap } from '$lib/stores/diagnostics.svelte';
@@ -249,10 +247,7 @@
 	let activeFileGitChanges = $state<GitLineChange[]>([]);
 
 	// Page tab state
-	let activeTab = $state<'overview' | 'files' | 'flow' | 'build' | 'history' | 'git' | 'recoil' | 'persistence' | 'defaults'>('overview');
-
-	// Git repo detection
-	let isGitRepo = $state(false);
+	let activeTab = $state<'overview' | 'files' | 'flow' | 'build' | 'history' | 'recoil' | 'persistence' | 'defaults'>('overview');
 
 	// Recoil tab state
 	let recoilContent = $state<string | null>(null);
@@ -384,7 +379,7 @@
 		if (isFlow) {
 			tabs.push('defaults', 'persistence');
 		}
-		tabs.push('build', 'history', 'git');
+		tabs.push('build', 'history');
 		return tabs;
 	})());
 
@@ -684,7 +679,6 @@
 			}
 			startLsp(game.path);
 			watchDirectory(game.path).catch((e) => console.warn('File watcher setup failed:', e));
-			gitIsRepo(game.path).then((v) => (isGitRepo = v)).catch(() => (isGitRepo = false));
 		}
 	});
 
@@ -1155,7 +1149,7 @@
 					class:hover:text-zinc-200={activeTab !== tab}
 					onclick={() => (activeTab = tab as typeof activeTab)}
 				>
-					{{ overview: m.page_tab_overview(), files: m.page_tab_files(), flow: m.page_tab_flow(), build: m.page_tab_build(), history: m.page_tab_history(), git: m.page_tab_git(), recoil: 'Recoil', persistence: m.page_tab_persistence(), defaults: m.page_tab_defaults() }[tab]}
+					{{ overview: m.page_tab_overview(), files: m.page_tab_files(), flow: m.page_tab_flow(), build: m.page_tab_build(), history: m.page_tab_history(), recoil: 'Recoil', persistence: m.page_tab_persistence(), defaults: m.page_tab_defaults() }[tab]}
 					{#if tab === 'build' && buildResult}
 						<span
 							class="ml-1 inline-block h-2 w-2 rounded-full"
@@ -1305,19 +1299,6 @@
 						{#if cachedFlowProject}
 							<FlowPersistencePanel project={cachedFlowProject} />
 						{/if}
-					{:else if activeTab === 'git'}
-						<GitPanel
-							gamePath={store.selectedGame?.path ?? ''}
-							{isGitRepo}
-							onCommitted={async () => {
-								if (store.selectedGame) {
-									await refreshFileTree(store.selectedGame.path);
-								}
-							}}
-							onRepoInit={async () => {
-								isGitRepo = true;
-							}}
-						/>
 					{/if}
 				</div>
 			</div>

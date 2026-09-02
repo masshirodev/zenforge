@@ -4,6 +4,15 @@
 	import FlowEdge from './FlowEdge.svelte';
 	import { getNodeHeight, getPortPosition, NODE_WIDTH } from '$lib/flow/layout';
 
+	const SNAP_THRESHOLD = 8;
+
+	interface SnapGuide {
+		axis: 'x' | 'y';
+		position: number;
+		from: number;
+		to: number;
+	}
+
 	interface Props {
 		graph: FlowGraph;
 		selectedNodeIds: string[];
@@ -144,6 +153,110 @@
 	let rubberBandCtrl = $state(false);
 	const RUBBER_BAND_THRESHOLD = 5; // pixels before rubber-band activates
 
+	// Snap guides visible during drag
+	let snapGuides = $state<SnapGuide[]>([]);
+
+	function computeSnap(
+		nodeId: string,
+		rawX: number,
+		rawY: number,
+		shiftHeld: boolean
+	): { x: number; y: number } {
+		snapGuides = [];
+		if (shiftHeld) return { x: rawX, y: rawY };
+
+		const draggedNode = graph.nodes.find((n) => n.id === nodeId);
+		if (!draggedNode) return { x: rawX, y: rawY };
+
+		const isExpanded = expandedNodes.has(nodeId);
+		const dragH = getNodeHeight(draggedNode, isExpanded);
+		const dragW = NODE_WIDTH;
+
+		// Dragged node edges
+		const dragLeft = rawX;
+		const dragRight = rawX + dragW;
+		const dragCenterX = rawX + dragW / 2;
+		const dragTop = rawY;
+		const dragBottom = rawY + dragH;
+		const dragCenterY = rawY + dragH / 2;
+
+		let snapX = rawX;
+		let snapY = rawY;
+		let bestDx = SNAP_THRESHOLD + 1;
+		let bestDy = SNAP_THRESHOLD + 1;
+		const guides: SnapGuide[] = [];
+
+		// Dragged node IDs to skip (for multi-select, skip all selected)
+		const skipIds = new Set(dragging?.offsets.keys() ?? [nodeId]);
+
+		for (const other of graph.nodes) {
+			if (skipIds.has(other.id)) continue;
+			const otherExpanded = expandedNodes.has(other.id);
+			const otherH = getNodeHeight(other, otherExpanded);
+			const oLeft = other.position.x;
+			const oRight = oLeft + dragW;
+			const oCenterX = oLeft + dragW / 2;
+			const oTop = other.position.y;
+			const oBottom = oTop + otherH;
+			const oCenterY = oTop + otherH / 2;
+
+			// X-axis alignment: left-left, right-right, center-center, left-right, right-left
+			const xPairs: [number, number][] = [
+				[dragLeft, oLeft],
+				[dragRight, oRight],
+				[dragCenterX, oCenterX],
+				[dragLeft, oRight],
+				[dragRight, oLeft],
+			];
+			for (const [dragEdge, otherEdge] of xPairs) {
+				const d = Math.abs(dragEdge - otherEdge);
+				if (d < SNAP_THRESHOLD && d < bestDx) {
+					bestDx = d;
+					snapX = rawX + (otherEdge - dragEdge);
+					const minY = Math.min(dragTop, oTop);
+					const maxY = Math.max(dragBottom, oBottom);
+					guides.push({ axis: 'x', position: otherEdge, from: minY, to: maxY });
+				}
+			}
+
+			// Y-axis alignment: top-top, bottom-bottom, center-center, top-bottom, bottom-top
+			const yPairs: [number, number][] = [
+				[dragTop, oTop],
+				[dragBottom, oBottom],
+				[dragCenterY, oCenterY],
+				[dragTop, oBottom],
+				[dragBottom, oTop],
+			];
+			for (const [dragEdge, otherEdge] of yPairs) {
+				const d = Math.abs(dragEdge - otherEdge);
+				if (d < SNAP_THRESHOLD && d < bestDy) {
+					bestDy = d;
+					snapY = rawY + (otherEdge - dragEdge);
+					const minX = Math.min(dragLeft, oLeft);
+					const maxX = Math.max(dragRight, oRight);
+					guides.push({ axis: 'y', position: otherEdge, from: minX, to: maxX });
+				}
+			}
+		}
+
+		// Keep only guides for the winning snap values
+		const finalGuides: SnapGuide[] = [];
+		for (const g of guides) {
+			if (g.axis === 'x' && bestDx <= SNAP_THRESHOLD && Math.abs(g.position - (snapX + (g.position - rawX + (snapX - rawX)))) < 1) {
+				finalGuides.push(g);
+			} else if (g.axis === 'y' && bestDy <= SNAP_THRESHOLD) {
+				finalGuides.push(g);
+			}
+		}
+
+		// Simpler: just keep last guides per axis
+		const lastX = guides.filter((g) => g.axis === 'x').pop();
+		const lastY = guides.filter((g) => g.axis === 'y').pop();
+		snapGuides = [lastX, lastY].filter((g): g is SnapGuide => !!g);
+
+		return { x: snapX, y: snapY };
+	}
+
 	// ResizeObserver for container size
 	$effect(() => {
 		if (!containerEl) return;
@@ -194,19 +307,20 @@
 		} else if (dragging) {
 			const pos = screenToSvg(e.clientX, e.clientY);
 			if (dragging.offsets.size > 1) {
-				// Multi-node drag
+				// Multi-node drag (no snapping)
 				const deltas: { nodeId: string; position: { x: number; y: number } }[] = [];
 				for (const [nid, offset] of dragging.offsets) {
 					deltas.push({ nodeId: nid, position: { x: pos.x - offset.dx, y: pos.y - offset.dy } });
 				}
 				onMoveNodes(deltas);
+				snapGuides = [];
 			} else {
-				// Single node drag
+				// Single node drag with snap
 				const offset = dragging.offsets.get(dragging.nodeId)!;
-				onMoveNode(dragging.nodeId, {
-					x: pos.x - offset.dx,
-					y: pos.y - offset.dy,
-				});
+				const rawX = pos.x - offset.dx;
+				const rawY = pos.y - offset.dy;
+				const snapped = computeSnap(dragging.nodeId, rawX, rawY, e.shiftKey);
+				onMoveNode(dragging.nodeId, snapped);
 			}
 		} else if (rubberBand) {
 			const pos = screenToSvg(e.clientX, e.clientY);
@@ -222,6 +336,7 @@
 			panning = null;
 		}
 		if (dragging) {
+			snapGuides = [];
 			onMoveNodeDone(dragging.nodeId);
 			dragging = null;
 		}
@@ -445,6 +560,35 @@
 					onToggleExpand={onToggleExpand}
 				/>
 			</g>
+		{/each}
+
+		<!-- Snap alignment guides -->
+		{#each snapGuides as guide}
+			{#if guide.axis === 'x'}
+				<line
+					x1={guide.position}
+					y1={guide.from - 10}
+					x2={guide.position}
+					y2={guide.to + 10}
+					stroke="#f59e0b"
+					stroke-width={1 / zoom}
+					stroke-dasharray="{4 / zoom},{3 / zoom}"
+					opacity="0.6"
+					style="pointer-events: none;"
+				/>
+			{:else}
+				<line
+					x1={guide.from - 10}
+					y1={guide.position}
+					x2={guide.to + 10}
+					y2={guide.position}
+					stroke="#f59e0b"
+					stroke-width={1 / zoom}
+					stroke-dasharray="{4 / zoom},{3 / zoom}"
+					opacity="0.6"
+					style="pointer-events: none;"
+				/>
+			{/if}
 		{/each}
 
 		<!-- Rubber-band selection rectangle -->

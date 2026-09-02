@@ -596,7 +596,8 @@
 			const md = modNode.moduleData;
 			if (!md) continue;
 			const isData = md.flowTarget === 'data';
-			const tag = isData ? `D:${md.moduleName}` : `G:${md.moduleName}`;
+			const displayName = modNode.label !== md.moduleName && modNode.label ? modNode.label : md.moduleName;
+			const tag = isData ? `D:${displayName}` : `G:${displayName}`;
 
 			// Node variables
 			for (const v of modNode.variables) {
@@ -801,6 +802,9 @@
 		onReorderSubNodes(selectedNode.id, fromIdx, toIdx);
 	}
 
+	// Suppress subnode click immediately after a drag operation
+	let didDragSubNode = false;
+
 	// Drag and drop state for subnode reordering
 	let dragSubNodeIdx = $state<number | null>(null);
 	let dragOverSubNodeIdx = $state<number | null>(null);
@@ -882,9 +886,11 @@
 	}
 
 	function handleSubNodeDragEnd() {
+		if (dragSubNodeIdx !== null) didDragSubNode = true;
 		dragSubNodeIdx = null;
 		dragOverSubNodeIdx = null;
 		dragOverGroup = null;
+		requestAnimationFrame(() => { didDragSubNode = false; });
 	}
 
 	function handleGroupDragStart(e: DragEvent, groupName: string) {
@@ -939,22 +945,19 @@
 <div class="flex h-full flex-col">
 	{#if selectedNode && selectedSubNode}
 		<!-- ==================== Sub-Node Properties ==================== -->
-		<div class="border-b border-zinc-800 px-3 py-2">
-			<div class="flex items-center gap-2">
-				<button
-					class="text-zinc-400 hover:text-zinc-200"
-					onclick={() => onSelectSubNode(selectedNode!.id, null)}
-					title="Back to node"
-				>
-					<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-					</svg>
-				</button>
-				<h3 class="text-xs font-medium uppercase tracking-wider text-zinc-500">Sub-Node</h3>
-				<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">
-					{subNodeDef?.name || selectedSubNode.type}
-				</span>
-			</div>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="flex cursor-pointer items-center gap-2 border-b border-zinc-800 px-3 py-2 text-zinc-400 hover:text-zinc-200"
+			onclick={() => onSelectSubNode(selectedNode!.id, null)}
+			title="Back to node"
+		>
+			<svg class="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+				<path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+			</svg>
+			<h3 class="text-xs font-medium uppercase tracking-wider text-zinc-500">Sub-Node</h3>
+			<span class="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">
+				{subNodeDef?.name || selectedSubNode.type}
+			</span>
 		</div>
 		<div class="scrollbar-none flex-1 overflow-y-auto px-3 py-2">
 			<!-- Name -->
@@ -2417,7 +2420,7 @@
 														<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
 													</button>
 												</div>
-												<button class="flex-1 truncate text-left text-xs {subNode.hidden ? 'text-zinc-600 line-through' : 'text-zinc-300'} hover:text-zinc-100" onclick={() => onSelectSubNode(selectedNode!.id, subNode.id)}>
+												<button class="flex-1 truncate text-left text-xs {subNode.hidden ? 'text-zinc-600 line-through' : 'text-zinc-300'} hover:text-zinc-100" onclick={() => { if (!didDragSubNode) onSelectSubNode(selectedNode!.id, subNode.id); }}>
 													<span class="mr-1 text-zinc-500">{def?.name || subNode.type}</span>
 													{subNode.label}
 												</button>
@@ -2484,7 +2487,7 @@
 										<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
 									</button>
 								</div>
-								<button class="flex-1 truncate text-left text-xs {subNode.hidden ? 'text-zinc-600 line-through' : 'text-zinc-300'} hover:text-zinc-100" onclick={() => onSelectSubNode(selectedNode!.id, subNode.id)}>
+								<button class="flex-1 truncate text-left text-xs {subNode.hidden ? 'text-zinc-600 line-through' : 'text-zinc-300'} hover:text-zinc-100" onclick={() => { if (!didDragSubNode) onSelectSubNode(selectedNode!.id, subNode.id); }}>
 									<span class="mr-1 text-zinc-500">{def?.name || subNode.type}</span>
 									{subNode.label}
 								</button>

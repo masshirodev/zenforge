@@ -17,13 +17,13 @@
 	import { addToast } from '$lib/stores/toast.svelte';
 
 	interface Props {
-		gamePath: string;
+		repoPath: string;
 		isGitRepo?: boolean;
 		onCommitted?: () => void;
 		onRepoInit?: () => void;
 	}
 
-	let { gamePath, isGitRepo = true, onCommitted, onRepoInit }: Props = $props();
+	let { repoPath, isGitRepo = true, onCommitted, onRepoInit }: Props = $props();
 
 	let statuses = $state<GitDetailedStatus[]>([]);
 	let loading = $state(false);
@@ -51,7 +51,7 @@
 	);
 
 	$effect(() => {
-		if (gamePath && isGitRepo) {
+		if (repoPath && isGitRepo) {
 			refresh();
 			loadRemotes();
 			loadBranch();
@@ -61,7 +61,7 @@
 	async function refresh() {
 		loading = true;
 		try {
-			statuses = await gitStatusDetailed(gamePath);
+			statuses = await gitStatusDetailed(repoPath);
 		} catch (e) {
 			statuses = [];
 		} finally {
@@ -71,7 +71,7 @@
 
 	async function loadRemotes() {
 		try {
-			remotes = await gitRemoteList(gamePath);
+			remotes = await gitRemoteList(repoPath);
 		} catch {
 			remotes = [];
 		}
@@ -79,7 +79,7 @@
 
 	async function loadBranch() {
 		try {
-			currentBranch = await gitCurrentBranch(gamePath);
+			currentBranch = await gitCurrentBranch(repoPath);
 		} catch {
 			currentBranch = '';
 		}
@@ -88,7 +88,7 @@
 	async function handleInit() {
 		initializing = true;
 		try {
-			await gitInit(gamePath);
+			await gitInit(repoPath);
 			addToast('Git repository initialized', 'success');
 			onRepoInit?.();
 		} catch (e) {
@@ -100,7 +100,7 @@
 
 	async function handleStage(paths: string[]) {
 		try {
-			await gitStage(gamePath, paths);
+			await gitStage(repoPath, paths);
 			await refresh();
 		} catch (e) {
 			addToast(`Failed to stage: ${e}`, 'error');
@@ -109,7 +109,7 @@
 
 	async function handleUnstage(paths: string[]) {
 		try {
-			await gitUnstage(gamePath, paths);
+			await gitUnstage(repoPath, paths);
 			await refresh();
 		} catch (e) {
 			addToast(`Failed to unstage: ${e}`, 'error');
@@ -133,7 +133,7 @@
 		}
 		committing = true;
 		try {
-			await gitCommit(gamePath, commitMessage.trim());
+			await gitCommit(repoPath, commitMessage.trim());
 			addToast('Changes committed successfully', 'success');
 			commitMessage = '';
 			diffPreview = null;
@@ -153,7 +153,7 @@
 			return;
 		}
 		try {
-			const diff = await gitDiffFile(gamePath, path);
+			const diff = await gitDiffFile(repoPath, path);
 			diffPreview = { path, diff: diff || '(no diff available — file may be untracked)' };
 		} catch {
 			diffPreview = { path, diff: '(failed to load diff)' };
@@ -166,7 +166,7 @@
 			return;
 		}
 		try {
-			await gitRemoteAdd(gamePath, newRemoteName.trim(), newRemoteUrl.trim());
+			await gitRemoteAdd(repoPath, newRemoteName.trim(), newRemoteUrl.trim());
 			addToast(`Remote "${newRemoteName}" added`, 'success');
 			showRemoteForm = false;
 			newRemoteName = 'origin';
@@ -179,7 +179,7 @@
 
 	async function handleRemoveRemote(name: string) {
 		try {
-			await gitRemoteRemove(gamePath, name);
+			await gitRemoteRemove(repoPath, name);
 			addToast(`Remote "${name}" removed`, 'success');
 			await loadRemotes();
 		} catch (e) {
@@ -196,7 +196,7 @@
 		try {
 			const remote = remotes[0].name;
 			const branch = currentBranch || 'main';
-			await gitPush(gamePath, remote, branch, true);
+			await gitPush(repoPath, remote, branch, true);
 			addToast(`Pushed to ${remote}/${branch}`, 'success');
 		} catch (e) {
 			addToast(`Push failed: ${e}`, 'error');
@@ -214,7 +214,7 @@
 		try {
 			const remote = remotes[0].name;
 			const branch = currentBranch || 'main';
-			await gitPull(gamePath, remote, branch);
+			await gitPull(repoPath, remote, branch);
 			addToast(`Pulled from ${remote}/${branch}`, 'success');
 			await refresh();
 		} catch (e) {

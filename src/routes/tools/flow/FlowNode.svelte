@@ -7,9 +7,11 @@
 		SUBNODE_ROW_HEIGHT,
 		FOOTER_HEIGHT,
 		PORT_RADIUS,
+		GROUP_LABEL_HEIGHT,
 		getNodeHeight,
 		getVisibleSubNodeCount,
 		getSortedSubNodes,
+		getFirstGroupOffset,
 	} from '$lib/flow/layout';
 
 	interface Props {
@@ -213,9 +215,33 @@
 			</g>
 		</g>
 	{:else if hasSubNodes}
+		{@const firstGroupOffset = getFirstGroupOffset(node)}
+		<!-- First group label (rendered in the extra space above rows) -->
+		{#if firstGroupOffset > 0}
+			{@const labelY = HEADER_HEIGHT + firstGroupOffset / 2}
+			<line
+				x1="4"
+				y1={labelY}
+				x2={NODE_WIDTH - 4}
+				y2={labelY}
+				stroke="#3f3f46"
+				stroke-width="1"
+			/>
+			<text
+				x={NODE_WIDTH / 2}
+				y={labelY}
+				text-anchor="middle"
+				fill="#71717a"
+				font-size="7"
+				dominant-baseline="middle"
+				style="pointer-events: none; user-select: none;"
+			>
+				{sortedSubNodes[0].group}
+			</text>
+		{/if}
 		<!-- Sub-node rows -->
 		{#each sortedSubNodes.slice(0, visibleCount) as subNode, i (subNode.id)}
-			{@const rowY = HEADER_HEIGHT + i * SUBNODE_ROW_HEIGHT}
+			{@const rowY = HEADER_HEIGHT + firstGroupOffset + i * SUBNODE_ROW_HEIGHT}
 			{@const isSubSelected = selectedSubNodeId === subNode.id}
 			{@const prevGroup = i > 0 ? sortedSubNodes[i - 1]?.group : undefined}
 			{@const isNewGroup = !!subNode.group && subNode.group !== prevGroup}

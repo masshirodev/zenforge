@@ -506,6 +506,94 @@ export function duplicateNode(nodeId: string): FlowNode | null {
 	return node;
 }
 
+export function pasteNode(
+	payload: {
+		type: FlowNodeType;
+		label: string;
+		gpcCode: string;
+		comboCode: string;
+		variables: FlowVariable[];
+		onEnter: string;
+		onExit: string;
+		initCode: string;
+		subNodes: Omit<SubNode, 'id'>[];
+		stackOffsetX: number;
+		stackOffsetY: number;
+		lineMargin?: number;
+		visibleCount?: number;
+		scrollMode?: 'window' | 'wrap';
+		backButton?: string;
+		backKey?: string;
+		blockInputs?: boolean;
+		onChangeVariable?: string;
+		onChangeCode?: string;
+		moduleData?: FlowNode['moduleData'];
+		autoSuppressed?: string[];
+	},
+	position: { x: number; y: number }
+): FlowNode | null {
+	if (!state.graph) return null;
+	pushUndo('Paste node');
+
+	const node: FlowNode = {
+		id: crypto.randomUUID(),
+		type: payload.type,
+		label: payload.label,
+		position,
+		gpcCode: payload.gpcCode,
+		oledScene: null,
+		oledWidgets: [],
+		comboCode: payload.comboCode,
+		isInitialState: false,
+		variables: structuredClone(payload.variables),
+		onEnter: payload.onEnter,
+		onExit: payload.onExit,
+		initCode: payload.initCode,
+		chunkRef: null,
+		subNodes: payload.subNodes.map((sn) => ({ ...structuredClone(sn), id: crypto.randomUUID() })),
+		stackOffsetX: payload.stackOffsetX,
+		stackOffsetY: payload.stackOffsetY,
+		lineMargin: payload.lineMargin,
+		visibleCount: payload.visibleCount,
+		scrollMode: payload.scrollMode,
+		backButton: payload.backButton,
+		backKey: payload.backKey,
+		blockInputs: payload.blockInputs,
+		onChangeVariable: payload.onChangeVariable,
+		onChangeCode: payload.onChangeCode,
+		moduleData: payload.moduleData ? structuredClone(payload.moduleData) : undefined,
+		autoSuppressed: payload.autoSuppressed ? [...payload.autoSuppressed] : undefined,
+	};
+
+	state.graph.nodes = [...state.graph.nodes, node];
+	state.graph.updatedAt = Date.now();
+	state.dirty = true;
+	return node;
+}
+
+export function pasteSubNode(
+	nodeId: string,
+	payload: Omit<SubNode, 'id'>
+): SubNode | null {
+	if (!state.graph) return null;
+	const node = state.graph.nodes.find((n) => n.id === nodeId);
+	if (!node) return null;
+
+	pushUndo('Paste sub-node');
+
+	const sn: SubNode = {
+		...structuredClone(payload),
+		id: crypto.randomUUID(),
+		order: node.subNodes.length,
+	};
+
+	node.subNodes = [...node.subNodes, sn];
+	state.graph.nodes = state.graph.nodes.map((n) => (n.id === nodeId ? { ...node } : n));
+	state.graph.updatedAt = Date.now();
+	state.dirty = true;
+	return sn;
+}
+
 // ==================== Edge Operations ====================
 
 export function addEdge(

@@ -9,6 +9,7 @@ export const FOOTER_HEIGHT = 28;
 export const MAX_VISIBLE_SUBNODES = 8;
 export const MIN_BODY_HEIGHT = 40;
 export const PORT_RADIUS = 6;
+export const GROUP_LABEL_HEIGHT = 12;
 
 /**
  * Compute the rendered height of a node on the canvas.
@@ -20,14 +21,15 @@ export function getNodeHeight(node: FlowNode, expanded: boolean = false): number
 		return HEADER_HEIGHT + MIN_BODY_HEIGHT + FOOTER_HEIGHT;
 	}
 
+	const groupOffset = getFirstGroupOffset(node);
 	const bodyHeight = node.subNodes.length * SUBNODE_ROW_HEIGHT;
 
 	if (expanded) {
-		return HEADER_HEIGHT + bodyHeight + FOOTER_HEIGHT;
+		return HEADER_HEIGHT + groupOffset + bodyHeight + FOOTER_HEIGHT;
 	}
 
 	const maxBody = MAX_VISIBLE_SUBNODES * SUBNODE_ROW_HEIGHT;
-	return HEADER_HEIGHT + Math.min(bodyHeight, maxBody) + FOOTER_HEIGHT;
+	return HEADER_HEIGHT + groupOffset + Math.min(bodyHeight, maxBody) + FOOTER_HEIGHT;
 }
 
 /**
@@ -43,6 +45,15 @@ export function getVisibleSubNodeCount(node: FlowNode, expanded: boolean = false
  */
 export function getSortedSubNodes(node: FlowNode): SubNode[] {
 	return [...node.subNodes].sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Extra vertical offset added when the first sub-node belongs to a group,
+ * so there is room for the group label above the first row.
+ */
+export function getFirstGroupOffset(node: FlowNode): number {
+	const sorted = getSortedSubNodes(node);
+	return sorted.length > 0 && sorted[0].group ? GROUP_LABEL_HEIGHT : 0;
 }
 
 /**
@@ -95,9 +106,10 @@ export function getPortPosition(
 	// Sub-node output port
 	const visIndex = getVisibleSubNodeIndex(node, subNodeId, expanded);
 	if (visIndex >= 0) {
+		const groupOffset = getFirstGroupOffset(node);
 		return {
 			x: node.position.x + NODE_WIDTH,
-			y: node.position.y + HEADER_HEIGHT + visIndex * SUBNODE_ROW_HEIGHT + SUBNODE_ROW_HEIGHT / 2,
+			y: node.position.y + HEADER_HEIGHT + groupOffset + visIndex * SUBNODE_ROW_HEIGHT + SUBNODE_ROW_HEIGHT / 2,
 		};
 	}
 

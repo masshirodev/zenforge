@@ -61,6 +61,7 @@
 		'/tools/depgraph': () => m.layout_sidebar_tool_dep_graph(),
 		'/tools/plugins': () => m.layout_sidebar_tool_plugins(),
 		'/tools/compare': () => m.layout_sidebar_tool_compare_games(),
+		'/tools/git': () => m.layout_sidebar_tool_git(),
 		'/tools/simulator': () => m.layout_sidebar_tool_simulator(),
 		'/tools/keyboard': () => m.layout_sidebar_tool_keyboard_mapper(),
 		'/tools/zmk': () => m.layout_sidebar_tool_zmk_editor(),
@@ -160,6 +161,11 @@
 					label: 'Compare Games',
 					icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
 					stroke: true
+				},
+				{
+					href: '/tools/git',
+					label: 'Git',
+					icon: 'M21.007 8.222A3.738 3.738 0 0015.045 5.2a3.737 3.737 0 00-1.156 6.516 2.249 2.249 0 01-2.065 1.09c-1.82 0-3.117.4-3.936 1.218a3.74 3.74 0 00-3.77 1.16 3.74 3.74 0 105.063 1.595 2.1 2.1 0 01-.076-.592c0-1.166.798-2.07 3.72-2.07a4.2 4.2 0 003.747-2.024 3.738 3.738 0 004.435-3.871zM6 20.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zM14.5 7a1.5 1.5 0 100 3 1.5 1.5 0 000-3z'
 				}
 			]
 		},

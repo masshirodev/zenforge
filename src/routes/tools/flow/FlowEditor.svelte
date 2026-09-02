@@ -34,6 +34,8 @@
 		moveNodeDone,
 		setInitialState,
 		duplicateNode,
+		pasteNode,
+		pasteSubNode,
 		removeEdge,
 		updateEdge,
 		selectNode,
@@ -77,6 +79,7 @@
 	import { onMount, untrack } from 'svelte';
 	import type { FlowNodeType, FlowChunk, FlowType, ModuleNodeData, SubNodeCondition } from '$lib/types/flow';
 	import { createFlowNode } from '$lib/types/flow';
+	import { encodeNode, encodeSubNode, decode } from '$lib/utils/flow-clipboard';
 	import type { ModuleSummary } from '$lib/types/module';
 
 	let settingsStore = getSettings();
@@ -303,9 +306,59 @@
 		} else if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
 			e.preventDefault();
 			handleSave();
+		} else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			handleCopy();
+		} else if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			handlePaste();
 		} else if (e.key === 'Escape') {
 			clearSelection();
 			cancelConnecting();
+		}
+	}
+
+	function handleCopy() {
+		const selectedSubNode = getSelectedSubNode();
+		const selectedNode = getSelectedNode();
+		if (selectedSubNode) {
+			navigator.clipboard.writeText(encodeSubNode(selectedSubNode));
+			addToast('Sub-node copied to clipboard', 'success');
+		} else if (selectedNode) {
+			navigator.clipboard.writeText(encodeNode(selectedNode));
+			addToast('Node copied to clipboard', 'success');
+		}
+	}
+
+	async function handlePaste() {
+		let text: string;
+		try {
+			text = await navigator.clipboard.readText();
+		} catch {
+			return;
+		}
+		const result = decode(text);
+		if (!result) return;
+
+		if (result.kind === 'node') {
+			const baseX = -flowStore.canvas.panX + 300;
+			const baseY = -flowStore.canvas.panY + 200;
+			const node = pasteNode(result.payload, { x: baseX, y: baseY });
+			if (node) {
+				selectNode(node.id);
+				addToast('Node pasted', 'success');
+			}
+		} else if (result.kind === 'subnode') {
+			const targetNodeId = flowStore.selectedNodeId;
+			if (!targetNodeId) {
+				addToast('Select a node first to paste a sub-node into', 'warning');
+				return;
+			}
+			const sn = pasteSubNode(targetNodeId, result.payload);
+			if (sn) {
+				selectSubNode(targetNodeId, sn.id);
+				addToast('Sub-node pasted', 'success');
+			}
 		}
 	}
 
@@ -387,7 +440,9 @@
 	}
 
 	function deleteSelected() {
-		if (flowStore.selectedNodeIds.length > 1) {
+		if (flowStore.selectedSubNodeId && flowStore.selectedNodeId) {
+			removeSubNode(flowStore.selectedNodeId, flowStore.selectedSubNodeId);
+		} else if (flowStore.selectedNodeIds.length > 1) {
 			removeNodes([...flowStore.selectedNodeIds]);
 		} else if (flowStore.selectedNodeId) {
 			removeNode(flowStore.selectedNodeId);
